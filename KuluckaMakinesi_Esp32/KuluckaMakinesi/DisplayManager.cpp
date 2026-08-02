@@ -2,6 +2,7 @@
 #include "AnimalIcons.h"
 #include "CandlingScheduler.h"
 #include <esp_task_wdt.h>
+#include "WdtFeed.h"
 #include "StorageService.h"
 #include <math.h>
 
@@ -92,6 +93,10 @@ DisplayManager::DisplayManager()
     , _prevTemp(-999)
     , _prevHum(-999)
     , _prevCO2(0)
+    , _prevTempMin(-999)
+    , _prevTempMax(-999)
+    , _prevHumMin(-999)
+    , _prevHumMax(-999)
     , _prevTempColor(0)
     , _prevHumColor(0)
     , _prevCO2Color(0)
@@ -655,9 +660,11 @@ void DisplayManager::drawDashboard(const DisplayData &data) {
 
 // ==================== SAYFA: GRAFIK (GAUGE TARZI - FLICKER-FREE) ====================
 
-void DisplayManager::drawGauge(int cx, int cy, int r, float value, float minVal, 
-                                float maxVal, float target, uint16_t color, 
-                                const char* label, const char* unit) {
+void DisplayManager::drawGauge(int cx, int cy, int r, float value, float minVal,
+                                float maxVal, float target, uint16_t color,
+                                const char* label, const char* unit,
+                                float bandLo, float bandHi, float devRef) {
+    const bool showDev = (devRef > GAUGE_NONE + 1.0f);
     // Sadece ilk cizimde statik elemanlari ciz
     if (_bgDraw) {
         // Arkaplan yay (koyu gri) - sadece 1 kez cizilir
@@ -670,16 +677,23 @@ void DisplayManager::drawGauge(int cx, int cy, int r, float value, float minVal,
             _tft.drawLine(x1, y1, x2, y2, 0x2104);
         }
         
-        // Hedef isaretcisi (turuncu) - sadece 1 kez
-        float targetRatio = (target - minVal) / (maxVal - minVal);
-        targetRatio = constrain(targetRatio, 0.0f, 1.0f);
-        float tAngle = (180.0f - targetRatio * 180.0f) * DEG2RAD;
-        int tx1 = cx + cos(tAngle) * (r - 10);
-        int ty1 = cy - sin(tAngle) * (r - 10);
-        int tx2 = cx + cos(tAngle) * (r + 3);
-        int ty2 = cy - sin(tAngle) * (r + 3);
-        _tft.drawLine(tx1, ty1, tx2, ty2, COL_ORANGE);
-        _tft.drawLine(tx1+1, ty1, tx2+1, ty2, COL_ORANGE);
+        // Isaretciler - sadece 1 kez cizilir.
+        //   set noktasi : kalin (2px) turuncu, yayin disina tasar
+        //   bant sinirlari: ince (1px) turuncu, alarm esiklerini gosterir
+        auto drawMark = [&](float t, bool thick) {
+            float tr = (t - minVal) / (maxVal - minVal);
+            tr = constrain(tr, 0.0f, 1.0f);
+            float tAngle = (180.0f - tr * 180.0f) * DEG2RAD;
+            int tx1 = cx + cos(tAngle) * (r - 10);
+            int ty1 = cy - sin(tAngle) * (r - 10);
+            int tx2 = cx + cos(tAngle) * (r + (thick ? 4 : 2));
+            int ty2 = cy - sin(tAngle) * (r + (thick ? 4 : 2));
+            _tft.drawLine(tx1, ty1, tx2, ty2, COL_ORANGE);
+            if (thick) _tft.drawLine(tx1 + 1, ty1, tx2 + 1, ty2, COL_ORANGE);
+        };
+        if (bandLo > GAUGE_NONE + 1.0f) drawMark(bandLo, false);
+        if (bandHi > GAUGE_NONE + 1.0f) drawMark(bandHi, false);
+        if (target > GAUGE_NONE + 1.0f) drawMark(target, true);
         
         // Min/Max etiketleri - sadece 1 kez
         _tft.setTextFont(1);
@@ -691,11 +705,15 @@ void DisplayManager::drawGauge(int cx, int cy, int r, float value, float minVal,
         sprintf(buf, "%.0f", maxVal);
         _tft.drawString(buf, cx + r - 8, cy + 6);
         
-        // Birim - sadece 1 kez
-        _tft.setTextFont(2);
-        _tft.setTextDatum(MC_DATUM);
-        _tft.setTextColor(COL_DIM, COL_BG);
-        _tft.drawString(unit, cx, cy + 42);
+        // Birim - sadece 1 kez.
+        // Sapma satiri gosterilecekse ayni yeri o kullanir (birimi kendi
+        // icinde yazar), burada cizmiyoruz; yoksa ust uste binerdi.
+        if (!showDev) {
+            _tft.setTextFont(2);
+            _tft.setTextDatum(MC_DATUM);
+            _tft.setTextColor(COL_DIM, COL_BG);
+            _tft.drawString(unit, cx, cy + 42);
+        }
         
         // Etiket (ust) - sadece 1 kez
         _tft.setTextFont(2);
@@ -707,14 +725,32 @@ void DisplayManager::drawGauge(int cx, int cy, int r, float value, float minVal,
     float ratio = (value - minVal) / (maxVal - minVal);
     ratio = constrain(ratio, 0.0f, 1.0f);
     int sweepDeg = (int)(ratio * 180);
-    
+
+    // Kabul edilebilir bant. Yay her karede yeniden cizildigi icin turuncu
+    // sinir cizgilerinin yay uzerine denk gelen kismi siliniyor; bandi
+    // ibrenin ulasmadigi bolgede koyu gri yerine soluk yesil cizerek kalici
+    // hale getiriyoruz. Boylece "normal aralik" ibre nerede olursa olsun
+    // gorunur kalir.
+    int bandDegLo = -1, bandDegHi = -1;
+    if (bandLo > GAUGE_NONE + 1.0f && bandHi > GAUGE_NONE + 1.0f) {
+        float lo = fminf(bandLo, bandHi);
+        float hi = fmaxf(bandLo, bandHi);
+        float rLo = constrain((lo - minVal) / (maxVal - minVal), 0.0f, 1.0f);
+        float rHi = constrain((hi - minVal) / (maxVal - minVal), 0.0f, 1.0f);
+        bandDegLo = (int)(rLo * 180.0f);
+        bandDegHi = (int)(rHi * 180.0f);
+    }
+
     for (int i = 0; i <= 180; i += 3) {
         float angle = (180.0f - i) * DEG2RAD;
         int x1 = cx + cos(angle) * (r - 6);
         int y1 = cy - sin(angle) * (r - 6);
         int x2 = cx + cos(angle) * r;
         int y2 = cy - sin(angle) * r;
-        uint16_t col = (i <= sweepDeg) ? color : 0x2104;
+        uint16_t offCol = (bandDegLo >= 0 && i >= bandDegLo && i <= bandDegHi)
+                            ? 0x0320      // soluk yesil = normal aralik
+                            : 0x2104;     // koyu gri    = aralik disi
+        uint16_t col = (i <= sweepDeg) ? color : offCol;
         _tft.drawLine(x1, y1, x2, y2, col);
     }
     
@@ -730,6 +766,28 @@ void DisplayManager::drawGauge(int cx, int cy, int r, float value, float minVal,
     sprintf(buf, "%.1f", value);
     _tft.drawString(buf, cx, cy + 22);
     _tft.setTextPadding(0);
+
+    // Sapma satiri: set noktasindan fark (orn. "-0.3 C").
+    // Kulucka'da 37.5 mi 37.8 mi oldugunu okuyup kafadan cikarmak yerine
+    // sapmayi dogrudan gormek cok daha hizli. Renk ISA-101 mantigiyla:
+    // normal aralikta soluk gri (dikkat cekmesin), disina cikinca kadran
+    // rengi (goz oraya gitsin).
+    if (showDev) {
+        float dev = value - devRef;
+        bool inBand = true;
+        if (bandLo > GAUGE_NONE + 1.0f && bandHi > GAUGE_NONE + 1.0f) {
+            inBand = (value >= fminf(bandLo, bandHi) && value <= fmaxf(bandLo, bandHi));
+        }
+        char devBuf[16];
+        snprintf(devBuf, sizeof(devBuf), "%+.1f %s", dev, unit);
+
+        _tft.setTextFont(2);
+        _tft.setTextDatum(MC_DATUM);
+        _tft.setTextColor(inBand ? COL_DIM : color, COL_BG);
+        _tft.setTextPadding(64);
+        _tft.drawString(devBuf, cx, cy + 42);
+        _tft.setTextPadding(0);
+    }
 }
 
 void DisplayManager::drawGraph(const DisplayData &data) {
@@ -790,11 +848,39 @@ void DisplayManager::drawGraph(const DisplayData &data) {
     bool humChanged = (fabs(data.humidity - _prevHum) >= 0.1f);
     bool co2Changed = (data.co2 != _prevCO2);
     
-    // Dinamik sinir degerleri
+    // ---- Kadran olcek sinirlari (uyarlanabilir) ----
+    // Normalde hedefin +/-3 C'lik dar bir penceresi kullanilir; kulucka
+    // calisirken bu yuksek cozunurluk verir.
+    //
+    // Ancak ISINMA sirasinda olcum bu pencerenin tamamen disinda kalir
+    // (orn. hedef 37.8, oda 28). drawGauge oranı constrain() ile 0'a
+    // kirptigi icin ibre 28 -> 34.8 arasindaki tum yolculuk boyunca
+    // sifirda cakili durur; kullanici hedefe yaklasmayi izleyemez.
+    //
+    // Cozum: olcum disarda kaldiginda pencereyi olcumu icine alacak sekilde
+    // genislet. Genisletme 5'er derecelik adimlarla yapilir; her okumada
+    // olcegin kaymasini onler, ibre gercekten hareket eder.
     float tempMin = data.targetTemp - 3.0f;
     float tempMax = data.targetTemp + 3.0f;
+    if (data.temperature < tempMin) tempMin = floorf(data.temperature / 5.0f) * 5.0f;
+    if (data.temperature > tempMax) tempMax = ceilf(data.temperature / 5.0f) * 5.0f;
+
     float humMin = data.targetHumLow - 10.0f;
     float humMax = data.targetHumHigh + 10.0f;
+    if (data.humidity < humMin) humMin = floorf(data.humidity / 10.0f) * 10.0f;
+    if (data.humidity > humMax) humMax = ceilf(data.humidity / 10.0f) * 10.0f;
+    if (humMin < 0.0f)   humMin = 0.0f;
+    if (humMax > 100.0f) humMax = 100.0f;
+
+    // Olcek degistiyse min/max etiketleri ve hedef isaretcisi yenilenmeli.
+    // Bunlar yalnizca _bgDraw'da cizildigi icin tam yeniden cizim gerekir.
+    // Adimli genisletme sayesinde bu nadiren tetiklenir (titreme olmaz).
+    if (tempMin != _prevTempMin || tempMax != _prevTempMax ||
+        humMin  != _prevHumMin  || humMax  != _prevHumMax) {
+        _prevTempMin = tempMin;  _prevTempMax = tempMax;
+        _prevHumMin  = humMin;   _prevHumMax  = humMax;
+        _forceRedraw = true;
+    }
     
     // CO2 sinir degerleri (profil bazli)
     float co2Min = 0;
@@ -824,7 +910,12 @@ void DisplayManager::drawGraph(const DisplayData &data) {
     
     // CO2 rengi (profil bazli dinamik limitler)
     uint16_t co2Color;
-    if (data.co2 >= data.co2Critical) {
+    if (!data.co2Valid) {
+        // Sensor yok/okunamiyor: gri goster. Aksi halde 0 ppm "co2Low'un
+        // altinda" sayilip YESIL cizilir ve "hava mukemmel" izlenimi verir;
+        // oysa hicbir olcum yoktur. Yanlis guven en tehlikeli gostergedir.
+        co2Color = COL_DIM;
+    } else if (data.co2 >= data.co2Critical) {
         co2Color = COL_RED;      // Kritik
     } else if (data.co2 >= data.co2High) {
         co2Color = COL_ORANGE;   // Yuksek
@@ -839,29 +930,44 @@ void DisplayManager::drawGraph(const DisplayData &data) {
     bool co2ColorChanged = (co2Color != _prevCO2Color);
     
     // Sicaklik gauge (sol ust)
+    // Sicaklikta TEK dogru deger vardir (set noktasi) + cevresinde alarm
+    // uretmeyen tolerans bandi. Bu yuzden kalin set noktasi cizgisi ile
+    // birlikte +/- ALARM_TEMP_TOLERANCE bandi gosterilir: operator hem
+    // "nereye gitmeli" hem "ne zaman alarm calar" bilgisini ayni anda gorur.
     if (tempChanged || tempColorChanged || _bgDraw) {
-        drawGauge(GAUGE1_X, GAUGE_Y1, GAUGE_R, 
+        drawGauge(GAUGE1_X, GAUGE_Y1, GAUGE_R,
                   data.temperature, tempMin, tempMax, data.targetTemp,
-                  tempColor, "SICAKLIK", "C");
+                  tempColor, "SICAKLIK", "C",
+                  data.targetTemp - ALARM_TEMP_TOLERANCE,
+                  data.targetTemp + ALARM_TEMP_TOLERANCE,
+                  data.targetTemp);   // sapma satiri: set noktasindan fark
         _prevTemp = data.temperature;
         _prevTempColor = tempColor;
     }
     
     // Nem gauge (sag ust)
+    // Nem TEK bir hedef degil ARALIK ister (orn. %55-65). Ortalamayi tek
+    // isaretci olarak gostermek yaniltiyordu: %56 da %64 de hedefte olmasina
+    // ragmen ibre isaretciden uzak gorunuyordu. Artik alt ve ust sinir ayri
+    // cizgilerle, aralarindaki bant da soluk yesil ile gosteriliyor.
     if (humChanged || humColorChanged || _bgDraw) {
-        float targetHum = (data.targetHumLow + data.targetHumHigh) / 2.0f;
         drawGauge(GAUGE2_X, GAUGE_Y1, GAUGE_R,
-                  data.humidity, humMin, humMax, targetHum,
-                  humColor, "NEM", "%");
+                  data.humidity, humMin, humMax,
+                  GAUGE_NONE,          // nemde tek set noktasi yok
+                  humColor, "NEM", "%",
+                  data.targetHumLow, data.targetHumHigh);
         _prevHum = data.humidity;
         _prevHumColor = humColor;
     }
     
-    // CO2 gauge (alt orta)
+    // CO2 gauge (alt orta) - sensor yoksa birim "YOK" yazar
     if (co2Changed || co2ColorChanged || _bgDraw) {
+        // CO2'de "dusuk iyidir": set noktasi yok, tabandan alt limite kadar
+        // olan bolge kabul edilebilir bant.
         drawGauge(GAUGE3_X, GAUGE_Y2, GAUGE_R_CO2,
-                  (float)data.co2, co2Min, co2Max, co2Target,
-                  co2Color, "CO2", "ppm");
+                  (float)data.co2, co2Min, co2Max, GAUGE_NONE,
+                  co2Color, "CO2", data.co2Valid ? "ppm" : "YOK",
+                  co2Min, co2Target);
         _prevCO2 = data.co2;
         _prevCO2Color = co2Color;
     }
@@ -1157,14 +1263,21 @@ void DisplayManager::drawSensors(const DisplayData &data) {
     int cx1 = 2 + sw / 2;
     _tft.setTextColor(COL_DIM, COL_CARD);
     _tft.drawString(SENSOR_NAME, cx1, SNS_Y + 2);
-    _tft.setTextColor(data.sensor1OK ? COL_GREEN : COL_RED, COL_CARD);
-    _tft.drawString(data.sensor1OK ? "OK" : "HATA", cx1, SNS_Y + 13);
+    // Uc durum ayrimi: OK (calisiyor) / HATA (takili ama cevap vermiyor) /
+    // YOK (donanim hic takili degil). Takili olmayan bir sensore surekli
+    // kirmizi HATA yazmak gercek arizalari da siradanlastirir.
+    _tft.setTextColor(data.sensor1OK ? COL_GREEN
+                                     : (data.sensor1Present ? COL_RED : COL_DIM), COL_CARD);
+    _tft.drawString(data.sensor1OK ? "OK"
+                                   : (data.sensor1Present ? "HATA" : "YOK"), cx1, SNS_Y + 13);
 
     int cx2 = 2 + sw + sw / 2;
     _tft.setTextColor(COL_DIM, COL_CARD);
     _tft.drawString(SENSOR_BUS_NAME, cx2, SNS_Y + 2);
-    _tft.setTextColor(data.sensor2OK ? COL_GREEN : COL_RED, COL_CARD);
-    _tft.drawString(data.sensor2OK ? "OK" : "HATA", cx2, SNS_Y + 13);
+    _tft.setTextColor(data.sensor2OK ? COL_GREEN
+                                     : (data.sensor2Present ? COL_RED : COL_DIM), COL_CARD);
+    _tft.drawString(data.sensor2OK ? "OK"
+                                   : (data.sensor2Present ? "HATA" : "YOK"), cx2, SNS_Y + 13);
 
     int cx3 = 2 + 2 * sw + sw / 2;
     _tft.setTextColor(COL_DIM, COL_CARD);
@@ -2316,14 +2429,21 @@ void DisplayManager::drawSettings(const DisplayData &data) {
     // Sensor 1 (orta)
     _tft.setTextColor(COL_DIM, COL_CARD);
     _tft.drawString(SENSOR_NAME, cardPadX + cardMargin + 56, cy + card2H / 2);
-    _tft.setTextColor(data.sensor1OK ? COL_GREEN : COL_RED, COL_CARD);
-    _tft.drawString(data.sensor1OK ? "OK" : "X", cardPadX + cardMargin + 106, cy + card2H / 2);
+    // Takili olmayan sensor "-" ile gosterilir (kirmizi X degil): ariza degil
+    _tft.setTextColor(data.sensor1OK ? COL_GREEN
+                                     : (data.sensor1Present ? COL_RED : COL_DIM), COL_CARD);
+    _tft.drawString(data.sensor1OK ? "OK"
+                                   : (data.sensor1Present ? "X" : "-"),
+                    cardPadX + cardMargin + 106, cy + card2H / 2);
 
     // Sensor 2 (sag)
     _tft.setTextColor(COL_DIM, COL_CARD);
     _tft.drawString(SENSOR_BUS_NAME, cardPadX + cardMargin + 140, cy + card2H / 2);
-    _tft.setTextColor(data.sensor2OK ? COL_GREEN : COL_RED, COL_CARD);
-    _tft.drawString(data.sensor2OK ? "OK" : "X", cardPadX + cardMargin + 188, cy + card2H / 2);
+    _tft.setTextColor(data.sensor2OK ? COL_GREEN
+                                     : (data.sensor2Present ? COL_RED : COL_DIM), COL_CARD);
+    _tft.drawString(data.sensor2OK ? "OK"
+                                   : (data.sensor2Present ? "X" : "-"),
+                    cardPadX + cardMargin + 188, cy + card2H / 2);
     _tft.setTextDatum(TL_DATUM);
 
     // ========== KART 3: SISTEM ==========
@@ -2538,7 +2658,7 @@ void DisplayManager::drawButton(int x, int y, int w, int h,
 // ==================== SPLASH ANIMASYONU ====================
 
 void DisplayManager::showSplashAnimation() {
-    esp_task_wdt_reset();
+    wdtFeed();
     // Geciici olarak yatay (landscape) moda gec — splash sonunda portrait'a doneriz.
     _tft.setRotation(1);
     const int W = 320;
@@ -2562,11 +2682,11 @@ void DisplayManager::showSplashAnimation() {
         _tft.setTextColor(COL_CYAN, COL_BG);
         _tft.drawString(c, startX + i * charW, centerY);
         delay(80);
-        esp_task_wdt_reset();
+        wdtFeed();
     }
 
     delay(200);
-    esp_task_wdt_reset();
+    wdtFeed();
 
     // Parlama efekti
     _tft.setTextColor(COL_TEXT, COL_BG);
@@ -2585,7 +2705,7 @@ void DisplayManager::showSplashAnimation() {
         _tft.drawString(verBuf, W / 2, centerY + 45);
     }
 
-    esp_task_wdt_reset();
+    wdtFeed();
     // Landscape splash GORUNUR KALIR. Altinda animasyonlu "Yukleniyor..."
     // arka plan task'ta donmeye baslar. Init bitince update() ekrani
     // temizleyip portrait dashboard'a gecer.

@@ -32,6 +32,12 @@ uint32_t getRecoverCount();
 // MUX bulundu ve son islemler basarili mi
 bool isHealthy();
 
+// ---------- Tani ----------
+// 8 kanali tek tek tarar ve her kanalda bulunan I2C adreslerini seri porta
+// yazar. Bir cihaz "BULUNAMADI" verdiginde gercekte hangi kanalda oldugunu
+// gormek icin kullanilir. Bulunan toplam cihaz sayisini dondurur.
+uint8_t scanAllChannels();
+
 }
 
 #endif // I2C_MUX_H

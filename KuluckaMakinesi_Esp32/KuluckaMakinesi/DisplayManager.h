@@ -56,6 +56,9 @@ struct DisplayData {
     float temperature;
     float humidity;
     uint16_t co2;           // CO₂ değeri (ppm)
+    bool     co2Valid;      // Gercek sensorden mi geliyor.
+                            // false iken 0 ppm'i YESIL "normal" olarak gostermek
+                            // "hava temiz" izlenimi verir; oysa olcum hic yoktur.
     float targetTemp;
     float targetHumLow;
     float targetHumHigh;
@@ -80,6 +83,11 @@ struct DisplayData {
     // Sensor durumu
     bool sensor1OK;
     bool sensor2OK;
+    // Donanim takili mi. "Takili degil" ile "takili ama arizali" ayri seylerdir:
+    // takili olmayan sensor icin surekli kirmizi HATA yazmak, gercek bir
+    // arizayi da siradanlastirip gozden kacirtir.
+    bool sensor1Present;
+    bool sensor2Present;
     unsigned long uptimeSec;
     uint16_t eggCount;
     // Alarm
@@ -162,6 +170,13 @@ private:
     float _prevTemp;
     float _prevHum;
     uint16_t _prevCO2;
+    // Kadran olcek sinirlari. Isinma sirasinda olcum hedef penceresinin
+    // disinda kalirsa pencere genisletilir; sinirlar degistiginde etiketler
+    // ve hedef isaretcisi (sadece _bgDraw'da cizilir) yenilenmelidir.
+    float _prevTempMin;
+    float _prevTempMax;
+    float _prevHumMin;
+    float _prevHumMax;
     uint16_t _prevTempColor;
     uint16_t _prevHumColor;
     uint16_t _prevCO2Color;
@@ -197,9 +212,25 @@ private:
                  uint16_t fg, uint16_t bg);
     void drawButton(int x, int y, int w, int h,
                     const char* label, uint16_t bg, uint16_t fg);
+    // Kadran isaretleme modeli (endustriyel HMI pratigine yakin):
+    //   target        : SET NOKTASI - tek, kalin turuncu cizgi.
+    //                   Sicaklik gibi tek dogru degeri olan olcumler icin.
+    //   bandLo/bandHi : KABUL EDILEBILIR ARALIK - soluk yesil yay + iki
+    //                   turuncu sinir cizgisi. Alarm esiklerini temsil eder.
+    //
+    // Nem gibi tek set noktasi OLMAYAN olcumlerde target = GAUGE_NONE gecilir;
+    // sadece bant cizilir. Sicaklikta ikisi birden kullanilir: ortada set
+    // noktasi, cevresinde tolerans bandi.
+    //   devRef        : verilirse buyuk degerin altina "set noktasindan
+    //                   SAPMA" satiri yazilir (orn. "-0.3 C"). Kulucka gibi
+    //                   0.1 C'lik sapmalarin onemli oldugu sureclerde mutlak
+    //                   degeri okuyup kafadan cikarma yapmaktan hizlidir.
+    static constexpr float GAUGE_NONE = -9999.0f;
     void drawGauge(int cx, int cy, int r, float value, float minVal,
                    float maxVal, float target, uint16_t color,
-                   const char* label, const char* unit);
+                   const char* label, const char* unit,
+                   float bandLo = GAUGE_NONE, float bandHi = GAUGE_NONE,
+                   float devRef = GAUGE_NONE);
     bool touchInRect(uint16_t tx, uint16_t ty,
                      int rx, int ry, int rw, int rh);
     

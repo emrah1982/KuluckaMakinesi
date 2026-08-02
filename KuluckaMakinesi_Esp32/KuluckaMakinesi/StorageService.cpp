@@ -2,6 +2,7 @@
  #include <SPI.h>
  #include <SD.h>
  #include <esp_task_wdt.h>
+#include "WdtFeed.h"
  #include <new>
 
 StorageService::StorageService()
@@ -43,14 +44,14 @@ bool StorageService::beginSD() {
     return false;
 #else
     // SD kart baslangicinda watchdog reset
-    esp_task_wdt_reset();
+    wdtFeed();
     
     // SD.begin() bloke edebilir, timeout ile koruma
     unsigned long startMs = millis();
     _sdReady = SD.begin(SD_CS_PIN);
     unsigned long elapsed = millis() - startMs;
     
-    esp_task_wdt_reset();
+    wdtFeed();
     
     if (_sdReady) {
         Serial.print("[STORAGE] SD baslatildi (");
@@ -78,7 +79,7 @@ void StorageService::updateSD() {
     if (now - lastCheckMs < CHECK_INTERVAL_MS) return;
     lastCheckMs = now;
 
-    esp_task_wdt_reset();
+    wdtFeed();
     retryCount++;
     if (beginSD()) {
         _sdLoggingEnabled = true;

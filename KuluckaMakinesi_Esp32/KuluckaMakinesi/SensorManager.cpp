@@ -17,6 +17,8 @@ SensorManager::SensorManager()
     , _sensorOK(false)
     , _sensor1OK(false)
     , _sensor2OK(false)
+    , _sensor1Present(false)
+    , _sensor2Present(false)
     , _failCount(0)
     , _failCount1(0)
     , _failCount2(0)
@@ -155,6 +157,7 @@ bool SensorManager::begin() {
     // Adres kontrolu
     Wire.beginTransmission(SHT40_ADDR);
     uint8_t err1 = Wire.endTransmission();
+    _sensor1Present = (err1 == 0);   // takili mi (arizali olmasindan ayri bilgi)
     if (err1 == 0) {
         float t1, h1;
         _sensor1OK = sht40Read(t1, h1);
@@ -175,6 +178,7 @@ bool SensorManager::begin() {
     delay(10);
     Wire.beginTransmission(SHT30_ADDR);
     uint8_t err2 = Wire.endTransmission();
+    _sensor2Present = (err2 == 0);   // takili mi (arizali olmasindan ayri bilgi)
     if (err2 == 0) {
         float t2, h2;
         _sensor2OK = sht30ReadOnChannel(MUX_CH_SENSOR_2, t2, h2);

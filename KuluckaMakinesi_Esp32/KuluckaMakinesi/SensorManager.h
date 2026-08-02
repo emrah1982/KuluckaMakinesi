@@ -41,6 +41,14 @@ public:
 
     bool isSensor1OK() const;
     bool isSensor2OK() const;
+
+    // Sensor acilista FIZIKSEL OLARAK BULUNDU mu?
+    // "Takili degil" ile "takili ama arizalandi" ayrimi icin gerekli.
+    // Ikisini ayirt etmeyen bir gosterim hic takilmamis sensor icin surekli
+    // kirmizi HATA yazar; boylece gercek bir ariza da fark edilmez hale gelir.
+    bool isSensor1Present() const { return _sensor1Present; }
+    bool isSensor2Present() const { return _sensor2Present; }
+
     bool isAnyValid() const;
     bool isStale() const;
     uint8_t getFailCount() const;
@@ -71,6 +79,8 @@ private:
     bool  _sensorOK;
     bool  _sensor1OK;
     bool  _sensor2OK;
+    bool  _sensor1Present;   // begin()'de adres ACK verdi mi (donanim takili mi)
+    bool  _sensor2Present;
     uint8_t _failCount;
     uint8_t _failCount1;
     uint8_t _failCount2;

@@ -4,6 +4,8 @@
 #include <WiFi.h>
 #include <esp_task_wdt.h>
 
+#include "WdtFeed.h"   // wdtFeed(): abone degilken sessiz watchdog besleme
+
 IncubationService::IncubationService()
     : _humCtrl(_humidifier)
     , _fanCtrl(_fan)
@@ -43,27 +45,27 @@ IncubationService::IncubationService()
 void IncubationService::begin() {
     DEBUG_PRINTLN("=== KULUCKA v1.0 ===");
     _eggTempSvc.begin();   // Uzak yumurta IR servisi - yedek (FreeRTOS task)
-    esp_task_wdt_reset();
+    wdtFeed();
 
     // HAL başlat
     bool sensorOK = _sensorMgr.begin();   // I2CMux::begin() burada cagrilir
-    esp_task_wdt_reset();
+    wdtFeed();
     // Yerel yumurta IR sensoru (MLX90614, MUX CH4) - birincil kaynak.
     // Yoksa sistem calismaya devam eder, EggTempService yedegi kullanilir.
     _eggIR.begin();
-    esp_task_wdt_reset();
+    wdtFeed();
     RelayBoard::instance().begin();
-    esp_task_wdt_reset();
+    wdtFeed();
     _heater.begin();
     _fan.begin();
     _humidifier.begin();
     _turner.begin();
     _coolSpray.begin();
-    esp_task_wdt_reset();
+    wdtFeed();
     _display.begin();   // splash animasyonu icinde WDT reset var
-    esp_task_wdt_reset();
+    wdtFeed();
     bool rtcOK = _rtc.begin();
-    esp_task_wdt_reset();
+    wdtFeed();
 
     // Servisler başlat
     _alarm.begin();
@@ -80,7 +82,17 @@ void IncubationService::begin() {
     } else {
         Serial.println("[SYS] CO2 sensor bulunamadi - CO2 alarmlari devre disi");
     }
-    esp_task_wdt_reset();
+    wdtFeed();
+
+    // ---- Tani: bir sey bulunamadiysa tum kanallari tara ----
+    // "BULUNAMADI" mesaji tek basina yetersiz: cihaz hic yok mu, yoksa baska
+    // bir kanalda mi? Tarama bunu dogrudan gosterir ve kablo tasima
+    // hatalarini aninda ortaya cikarir.
+    if (!sensorOK || !_eggIR.isReady() || !RelayBoard::instance().isHealthy()) {
+        Serial.println("[SYS] Eksik cihaz var - kanal taramasi yapiliyor...");
+        I2CMux::scanAllChannels();
+        wdtFeed();
+    }
 
     DEBUG_PRINTLN("[SYS] Storage basliyor...");
     // NVS'den sensor kalibrasyon yukle
@@ -100,7 +112,15 @@ void IncubationService::begin() {
     {
         DateTime nowDt = _rtc.now();
         bool rtcValid = RTCManager::isValidDate(nowDt);
-        if (rtcValid) {
+
+        // DIKKAT: isValidDate() sadece tarihin makul olup olmadigina bakar.
+        // RTC donanimi olu oldugunda now() millis tabanli sahte bir saat
+        // dondurur ve o tarih de "gecerli" gorunur. Bu yuzden donanim
+        // sagligini AYRICA sormak gerekir; yoksa DS3231 hic yokken bile
+        // "RTC OK" yazilir ve gercek ariza gizlenir.
+        bool rtcHw = _rtc.isHealthy();
+
+        if (rtcValid && rtcHw) {
             // RTC iyi durumda — NVS'i guncel zamanla seed et
             _storage.saveLastKnownTime((uint32_t)nowDt.unixtime());
             _nvsTimeBaseUnix = (uint32_t)nowDt.unixtime();
@@ -108,6 +128,18 @@ void IncubationService::begin() {
             DEBUG_PRINTF("[CLOCK] RTC OK: %04u-%02u-%02u %02u:%02u, NVS guncellendi\n",
                          nowDt.year(), nowDt.month(), nowDt.day(),
                          nowDt.hour(), nowDt.minute());
+        } else if (rtcValid && !rtcHw) {
+            // Zaman makul ama donanim yok: millis tabanli sayim yuruyor.
+            // Saat gosterilebilir ama guc kesintisinde kaybolur.
+            _nvsTimeBaseUnix = (uint32_t)nowDt.unixtime();
+            _nvsTimeBaseMs   = millis();
+            Serial.printf("[CLOCK] UYARI: DS3231 YOK (%s). Saat millis tabanli "
+                          "yurutuluyor: %04u-%02u-%02u %02u:%02u\n",
+                          _rtc.getStatusString(),
+                          nowDt.year(), nowDt.month(), nowDt.day(),
+                          nowDt.hour(), nowDt.minute());
+            Serial.println("[CLOCK] UYARI: Guc kesilirse tarih/saat kaybolur, "
+                           "kulucka gun sayaci bozulabilir.");
         } else {
             // RTC bozuk — NVS'den son bilinen zamani restore et
             uint32_t lastKnown = _storage.loadLastKnownTime();
@@ -738,6 +770,7 @@ void IncubationService::updateDisplay() {
     // Sensor yoksa 0 goster; 400 ppm "taban deger" gostermek gercek olcum
     // izlenimi verir ve havalandirma sorununu maskeler.
     dd.co2              = _co2Valid ? _co2Value : 0;
+    dd.co2Valid         = _co2Valid;
     dd.targetTemp       = _phaseMgr.getTargetTemperature();
     dd.targetHumLow     = _phaseMgr.getHumidityLow();
     dd.targetHumHigh    = _phaseMgr.getHumidityHigh();
@@ -760,6 +793,8 @@ void IncubationService::updateDisplay() {
     dd.turningIntervalMin = _phaseMgr.getTurningIntervalMin();
     dd.sensor1OK        = _sensorMgr.isSensor1OK();
     dd.sensor2OK        = _sensorMgr.isSensor2OK();
+    dd.sensor1Present   = _sensorMgr.isSensor1Present();
+    dd.sensor2Present   = _sensorMgr.isSensor2Present();
     dd.uptimeSec        = (millis() - _startMillis) / 1000;
     dd.eggCount         = _storage.loadEggCount(100);
     dd.alarmActive      = _alarm.hasActiveAlarm();

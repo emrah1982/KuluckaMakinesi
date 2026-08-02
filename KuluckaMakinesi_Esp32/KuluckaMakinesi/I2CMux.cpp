@@ -1,4 +1,5 @@
 #include "I2CMux.h"
+#include "WdtFeed.h"   // uzun kanal taramasinda watchdog beslemek icin
 
 // ============================================================
 // Grove - 8 Channel I2C Multiplexer (TCA9548A tabanli)
@@ -242,6 +243,84 @@ bool recover() {
 
     _inRecovery = false;
     return _ready;
+}
+
+// ---------------------------------------------------------------------
+//  Tani: tum kanallari tara ve bulunan cihazlari listele
+//
+//  Bir sensor "BULUNAMADI" verdiginde asil soru sudur: cihaz hic yok mu,
+//  yoksa baska bir kanalda mi? Bu tarama o soruyu dogrudan yanitlar.
+// ---------------------------------------------------------------------
+uint8_t scanAllChannels() {
+    if (!_ready) {
+        Serial.println("[MUX-SCAN] MUX hazir degil, tarama yapilamiyor");
+        return 0;
+    }
+
+    Serial.println("---------- I2C KANAL TARAMASI ----------");
+
+    // --- Once ANA BUS: tum kanallar kapaliyken kim cevap veriyor? ---
+    // Buradaki tek cihaz MUX olmalidir. Baska bir adres cikarsa o cihaz
+    // yanlislikla MUX'un ARKASINA degil ONUNE baglanmis demektir.
+    closeAll();
+    Serial.print("[MUX-SCAN] ANA BUS (kanallar kapali):");
+    uint8_t busCount = 0;
+    for (uint8_t a = 0x08; a <= 0x77; a++) {
+        if (pingAddr(a)) {
+            Serial.printf(" 0x%02X%s", a, (a == _addr) ? "(MUX)" : "");
+            busCount++;
+        }
+    }
+    if (busCount == 0) Serial.print(" (bos!)");
+    Serial.println();
+    wdtFeed();
+
+    uint8_t total = 0;
+
+    for (uint8_t ch = 0; ch <= 7; ch++) {
+        if (!trySelect(ch)) {
+            Serial.printf("[MUX-SCAN] CH%u: kanal secilemedi!\n", ch);
+            continue;
+        }
+
+        // Kanal GERCEKTEN acildi mi? Kontrol registerini geri oku.
+        // Yazma ACK almasi yetmez; MUX maskeyi tutmuyorsa (RESET pini,
+        // besleme dalgalanmasi vb.) kanal fiziksel olarak kapali kalir ve
+        // arkasindaki cihaz asla cevap veremez.
+        uint8_t rb = 0xFF;
+        uint8_t expected = (uint8_t)(1u << ch);
+        if (!readMask(_addr, rb)) {
+            Serial.printf("[MUX-SCAN] CH%u: register OKUNAMADI\n", ch);
+        } else if (rb != expected) {
+            Serial.printf("[MUX-SCAN] CH%u: SECIM TUTMADI! reg=0x%02X beklenen=0x%02X\n",
+                          ch, rb, expected);
+        }
+
+        Serial.printf("[MUX-SCAN] CH%u:", ch);
+        uint8_t found = 0;
+        for (uint8_t a = 0x08; a <= 0x77; a++) {
+            // MUX adres araligina yazma yapma: kendi kontrol registerini bozar
+            if (a >= 0x70 && a <= 0x77) continue;
+            if (pingAddr(a)) {
+                Serial.printf(" 0x%02X", a);
+                found++;
+                total++;
+            }
+        }
+        if (found == 0) Serial.print(" (bos)");
+        Serial.println();
+
+        // Bos/kablosuz bir kanalda her adres I2C timeout'una kadar bekleyebilir
+        // (112 adres x 50ms = dakikalar). Watchdog calisiyorsa besle.
+        wdtFeed();
+    }
+
+    closeAll();
+    Serial.printf("[MUX-SCAN] Toplam %u cihaz bulundu\n", total);
+    Serial.println("[MUX-SCAN] Beklenen: CH0=0x68 CH1=0x44 CH2=0x44 "
+                   "CH3=0x61 CH4=0x5A CH7=0x20");
+    Serial.println("----------------------------------------");
+    return total;
 }
 
 uint8_t getFailCount() {
