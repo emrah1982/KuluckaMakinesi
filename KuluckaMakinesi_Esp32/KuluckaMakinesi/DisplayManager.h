@@ -221,16 +221,22 @@ private:
     // Nem gibi tek set noktasi OLMAYAN olcumlerde target = GAUGE_NONE gecilir;
     // sadece bant cizilir. Sicaklikta ikisi birden kullanilir: ortada set
     // noktasi, cevresinde tolerans bandi.
-    //   devRef        : verilirse buyuk degerin altina "set noktasindan
-    //                   SAPMA" satiri yazilir (orn. "-0.3 C"). Kulucka gibi
-    //                   0.1 C'lik sapmalarin onemli oldugu sureclerde mutlak
-    //                   degeri okuyup kafadan cikarma yapmaktan hizlidir.
     static constexpr float GAUGE_NONE = -9999.0f;
+
+    // Sapma satiri: buyuk degerin altina "hedefe ne kadar kaldi / ne kadar
+    // asildi" yazar. Mutlak degeri okuyup farki kafadan cikarmaktan hizlidir.
+    // Referans, olcumun dogasina gore degisir:
+    enum GaugeDev : uint8_t {
+        DEV_NONE = 0,   // satir yok; onun yerine birim yazilir
+        DEV_SETPOINT,   // target'a gore sapma  -> tek hedefli (sicaklik)
+        DEV_BAND        // bandLo..bandHi'a gore -> aralik hedefli (nem, CO2)
+    };
+
     void drawGauge(int cx, int cy, int r, float value, float minVal,
                    float maxVal, float target, uint16_t color,
                    const char* label, const char* unit,
                    float bandLo = GAUGE_NONE, float bandHi = GAUGE_NONE,
-                   float devRef = GAUGE_NONE);
+                   GaugeDev devMode = DEV_NONE, uint8_t devDecimals = 1);
     bool touchInRect(uint16_t tx, uint16_t ty,
                      int rx, int ry, int rw, int rh);
     

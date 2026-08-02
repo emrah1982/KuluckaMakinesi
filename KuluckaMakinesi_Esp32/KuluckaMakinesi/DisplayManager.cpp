@@ -663,8 +663,9 @@ void DisplayManager::drawDashboard(const DisplayData &data) {
 void DisplayManager::drawGauge(int cx, int cy, int r, float value, float minVal,
                                 float maxVal, float target, uint16_t color,
                                 const char* label, const char* unit,
-                                float bandLo, float bandHi, float devRef) {
-    const bool showDev = (devRef > GAUGE_NONE + 1.0f);
+                                float bandLo, float bandHi,
+                                GaugeDev devMode, uint8_t devDecimals) {
+    const bool showDev = (devMode != DEV_NONE);
     // Sadece ilk cizimde statik elemanlari ciz
     if (_bgDraw) {
         // Arkaplan yay (koyu gri) - sadece 1 kez cizilir
@@ -767,24 +768,42 @@ void DisplayManager::drawGauge(int cx, int cy, int r, float value, float minVal,
     _tft.drawString(buf, cx, cy + 22);
     _tft.setTextPadding(0);
 
-    // Sapma satiri: set noktasindan fark (orn. "-0.3 C").
-    // Kulucka'da 37.5 mi 37.8 mi oldugunu okuyup kafadan cikarmak yerine
-    // sapmayi dogrudan gormek cok daha hizli. Renk ISA-101 mantigiyla:
-    // normal aralikta soluk gri (dikkat cekmesin), disina cikinca kadran
-    // rengi (goz oraya gitsin).
+    // Sapma satiri: "hedefe ne kadar kaldi / ne kadar asildi".
+    // Renk ISA-101 mantigiyla: hedefteyken soluk gri (dikkat cekmesin),
+    // disina cikinca kadran rengi (goz oraya gitsin).
     if (showDev) {
-        float dev = value - devRef;
-        bool inBand = true;
-        if (bandLo > GAUGE_NONE + 1.0f && bandHi > GAUGE_NONE + 1.0f) {
-            inBand = (value >= fminf(bandLo, bandHi) && value <= fmaxf(bandLo, bandHi));
+        char devBuf[20];
+        bool  inTarget = false;
+        float dev = 0.0f;
+        const bool hasBand = (bandLo > GAUGE_NONE + 1.0f && bandHi > GAUGE_NONE + 1.0f);
+        const float lo = hasBand ? fminf(bandLo, bandHi) : 0.0f;
+        const float hi = hasBand ? fmaxf(bandLo, bandHi) : 0.0f;
+
+        if (devMode == DEV_SETPOINT) {
+            // Tek hedefli olcum: sapma her zaman set noktasina gore.
+            // Deger bandin icindeyse "normal" sayilir ama sayi yine yazilir;
+            // 0.1 C'lik sapmalari izlemek kulucka icin degerli.
+            dev = value - target;
+            inTarget = hasBand ? (value >= lo && value <= hi)
+                               : (fabsf(dev) < 0.05f);
+            snprintf(devBuf, sizeof(devBuf), "%+.*f %s", (int)devDecimals, dev, unit);
+        } else {
+            // Aralik hedefli olcum: aralik ICINDE sapma diye bir sey yoktur;
+            // ortalamaya gore sapma yazmak yaniltir (%56 da %64 de hedeftedir).
+            // Disarda ise en yakin sinira olan uzaklik gosterilir.
+            if      (value < lo) { dev = value - lo; }
+            else if (value > hi) { dev = value - hi; }
+            else                 { inTarget = true;  }
+
+            if (inTarget) snprintf(devBuf, sizeof(devBuf), "HEDEFTE");
+            else          snprintf(devBuf, sizeof(devBuf), "%+.*f %s",
+                                   (int)devDecimals, dev, unit);
         }
-        char devBuf[16];
-        snprintf(devBuf, sizeof(devBuf), "%+.1f %s", dev, unit);
 
         _tft.setTextFont(2);
         _tft.setTextDatum(MC_DATUM);
-        _tft.setTextColor(inBand ? COL_DIM : color, COL_BG);
-        _tft.setTextPadding(64);
+        _tft.setTextColor(inTarget ? COL_DIM : color, COL_BG);
+        _tft.setTextPadding(70);
         _tft.drawString(devBuf, cx, cy + 42);
         _tft.setTextPadding(0);
     }
@@ -940,7 +959,7 @@ void DisplayManager::drawGraph(const DisplayData &data) {
                   tempColor, "SICAKLIK", "C",
                   data.targetTemp - ALARM_TEMP_TOLERANCE,
                   data.targetTemp + ALARM_TEMP_TOLERANCE,
-                  data.targetTemp);   // sapma satiri: set noktasindan fark
+                  DEV_SETPOINT, 1);   // sapma: set noktasina gore, 0.1 C
         _prevTemp = data.temperature;
         _prevTempColor = tempColor;
     }
@@ -955,7 +974,8 @@ void DisplayManager::drawGraph(const DisplayData &data) {
                   data.humidity, humMin, humMax,
                   GAUGE_NONE,          // nemde tek set noktasi yok
                   humColor, "NEM", "%",
-                  data.targetHumLow, data.targetHumHigh);
+                  data.targetHumLow, data.targetHumHigh,
+                  DEV_BAND, 1);        // sapma: aralik sinirina gore
         _prevHum = data.humidity;
         _prevHumColor = humColor;
     }
@@ -964,10 +984,13 @@ void DisplayManager::drawGraph(const DisplayData &data) {
     if (co2Changed || co2ColorChanged || _bgDraw) {
         // CO2'de "dusuk iyidir": set noktasi yok, tabandan alt limite kadar
         // olan bolge kabul edilebilir bant.
+        // Sensor yokken sapma satiri gosterilmez: 0 ppm bandin icinde
+        // kaldigi icin "HEDEFTE" yazardi ve olcum varmis gibi gorunurdu.
         drawGauge(GAUGE3_X, GAUGE_Y2, GAUGE_R_CO2,
                   (float)data.co2, co2Min, co2Max, GAUGE_NONE,
                   co2Color, "CO2", data.co2Valid ? "ppm" : "YOK",
-                  co2Min, co2Target);
+                  co2Min, co2Target,
+                  data.co2Valid ? DEV_BAND : DEV_NONE, 0);  // ppm tam sayi
         _prevCO2 = data.co2;
         _prevCO2Color = co2Color;
     }

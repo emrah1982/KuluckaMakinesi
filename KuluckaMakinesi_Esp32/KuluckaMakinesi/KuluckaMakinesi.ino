@@ -19,7 +19,12 @@
  *  1. Dosya > Tercihler > Ek Kart Yoneticisi URL:
  *     https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
  *  2. Araclar > Kart > ESP32 Dev Module
- *  3. Araclar > Kart > Partition Scheme > Huge APP (3MB No OTA/1MB SPIFFS)
+ *  3. Partition Scheme: sketch klasorundeki partitions.csv KULLANILIR.
+ *     Arduino IDE bu dosyayi menudeki secimin YERINE kopyalar, dolayisiyla
+ *     menu secimi etkisizdir. Tablo: 2x 1.9MB app (OTA destekli) + SPIFFS.
+ *     Menuden secmek isterseniz "Minimal SPIFFS (1.9MB APP with OTA)" ile
+ *     ayni yapidir. "Huge APP" SECMEYIN: OTA bolumu yoktur, projenin OTA
+ *     ozellikleri (OTAService/OTAUpdater) o tabloda calismaz.
  *  4. Kutuphaneler (Sketch > Include Library > Manage Libraries):
  *     - RTClib (Adafruit)
  *  5. Manuel kutuphane (GitHub ZIP):

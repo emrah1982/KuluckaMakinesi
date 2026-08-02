@@ -169,7 +169,18 @@ takilmamis bir sistemde surekli alarm calmaz.
 
 ### Arduino IDE Ayarlari
 1. **Kart:** ESP32 Dev Module
-2. **Partition Scheme:** Huge APP (3MB No OTA / 1MB SPIFFS)
+2. **Partition Scheme:** Menuden secmeniz **gerekmez**. Sketch klasorunde
+   `partitions.csv` bulunur ve Arduino IDE bu dosyayi menudeki secimin
+   yerine kopyalar; menu secimi etkisizdir.
+
+   Tablo: 2 x 1.9 MB app (OTA destekli) + 190 KB SPIFFS + NVS.
+   Menuden esdeger secim: **Minimal SPIFFS (1.9MB APP with OTA)**.
+
+   > **"Huge APP" secmeyin.** O tabloda OTA bolumu yoktur; projenin OTA
+   > ozellikleri (`OTAService`, `OTAUpdater`) calisamaz. Kilavuzun onceki
+   > surumunde Huge APP yaziyordu, bu yanlisti — sketch'in kendi
+   > `partitions.csv`'si zaten devreye girdigi icin pratikte zarar
+   > vermiyordu ama yaniltiyordu.
 3. **Kutuphaneler:**
    - RTClib (Adafruit)
    - ESPAsyncWebServer (mathieucarbou)
@@ -1860,7 +1871,7 @@ hesaplanan SHA256 == remote.sha256 ?
 ### 15.6. Uyarilar (her iki yontem icin)
 
 - Guncelleme sirasinda kulucka durumu NVS'de kayitli oldugundan, yeni firmware basladiktan sonra kurtarma otomatik calisir
-- **Yanlis firmware yuklerseniz cihaz bozulabilir** — derleme ortaminizi dogrulayin (board: ESP32 Dev Module, partition: Huge APP)
+- **Yanlis firmware yuklerseniz cihaz bozulabilir** — derleme ortaminizi dogrulayin (board: ESP32 Dev Module; partition tablosu sketch'teki `partitions.csv`'den gelir, menuden secim gerekmez)
 - Guncelleme sirasinda guc **KESMEYIN** — flash'in yarida kalmasi cihazi brick'leyebilir
 - Internet OTA'sinda indirme suresi internet hizina baglidir (5–60 sn). Bu sirada ana donguden web istegi cevaplanmaz; UI ekrani polling ile durumu gosterir
 - Yan yana birden cok cihaz varsa **her cihaz icin ayri `version.json`** kullanmaniza gerek yok — `deviceId` (`KM-xxxxxxxx`) firmware'in icine gomulu olmadigi icin tek bir `.bin` tum cihazlarda calisir
