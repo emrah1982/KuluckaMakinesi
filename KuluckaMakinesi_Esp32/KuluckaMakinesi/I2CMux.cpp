@@ -25,6 +25,7 @@ static uint8_t _addr = MUX_ADDR;
 static uint8_t  _consecFail   = 0;      // Art arda basarisiz kanal secimi
 static uint32_t _recoverCount = 0;      // Toplam bus kurtarma sayisi
 static bool     _inRecovery   = false;  // Yeniden girisi engelle
+static uint32_t _lastRecoverMs = 0;     // Son kurtarma zamani (cooldown icin)
 
 static bool pingAddr(uint8_t a) {
     Wire.beginTransmission(a);
@@ -200,9 +201,12 @@ bool selectChannel(uint8_t ch) {
         return true;
     }
 
-    // Basarisiz: sayaci artir, esige gelince bus'i kurtarip bir kez daha dene
+    // Basarisiz: sayaci artir, esige gelince bus'i kurtarip bir kez daha dene.
+    // Log spam'i onle: cihaz hic takili degilse bu her dongude calisir.
     if (_consecFail < 255) _consecFail++;
-    Serial.printf("[MUX] Kanal %u secilemedi (ardisik hata=%u)\n", ch, _consecFail);
+    if (_consecFail <= MUX_FAIL_LIMIT || (_consecFail % 50) == 0) {
+        Serial.printf("[MUX] Kanal %u secilemedi (ardisik hata=%u)\n", ch, _consecFail);
+    }
 
     if (_consecFail >= MUX_FAIL_LIMIT && !_inRecovery) {
         if (recover() && trySelect(ch)) {
@@ -216,21 +220,58 @@ bool selectChannel(uint8_t ch) {
 
 // ---------------------------------------------------------------------
 //  Bus kurtarma
+//
+//  Kademeli: once en az zarar veren yontem denenir.
+//    1) Hicbir seye dokunmadan yeniden ara  -> gecici NACK icin yeterli
+//    2) Wire'i kapat/ac + ara               -> surucu takildiysa
+//    3) SCL darbeleri (bit-bang) + ara      -> slave SDA'yi LOW tutuyorsa
+//
+//  Neden kademeli: 3. adim bus'i tamamen yikip yeniden kuruyor. Gercekten
+//  gerekmedikce yapilmamali; her cagrida yapilirsa calisan bir bus'i de
+//  bozabilir.
+//
+//  COOLDOWN: kurtarma pahalidir (Wire yeniden kurulumu + 8 adres taramasi).
+//  TAKILI OLMAYAN bir cihaz her dongude yazma denerse, kurtarma da her
+//  dongude tetiklenir ve sistem sonsuz kurtarma dongusune girer. Bu yuzden
+//  iki deneme arasinda minimum sure sarti var.
 // ---------------------------------------------------------------------
 bool recover() {
     if (_inRecovery) return false;   // yeniden giris korumasi
+
+    // Cooldown: cok sik cagrildiysa mevcut durumu dondur, bus'a dokunma
+    uint32_t now = millis();
+    if (_recoverCount > 0 && (now - _lastRecoverMs) < MUX_RECOVER_COOLDOWN_MS) {
+        return _ready;
+    }
+    _lastRecoverMs = now;
+
     _inRecovery = true;
     _recoverCount++;
-
     Serial.printf("[MUX] Bus kurtarma basliyor (#%lu)...\n",
                   (unsigned long)_recoverCount);
 
-    _ready = false;
+    int found = -1;
 
-    busUnstick();
-    wireStart();
+    // --- 1) Once dokunmadan dene ---
+    found = detectAddr();
+    if (found >= 0) {
+        Serial.println("[MUX] Bus zaten saglam (gecici hata)");
+    } else {
+        // --- 2) Wire'i yeniden kur ---
+        Wire.end();
+        delay(5);
+        wireStart();
+        found = detectAddr();
+        if (found >= 0) {
+            Serial.println("[MUX] Wire yeniden kurulumu ile duzeldi");
+        } else {
+            // --- 3) Son care: hatti bit-bang ile serbest birak ---
+            busUnstick();
+            wireStart();
+            found = detectAddr();
+        }
+    }
 
-    int found = detectAddr();
     if (found >= 0) {
         _addr = (uint8_t)found;
         _ready = true;
@@ -238,7 +279,9 @@ bool recover() {
         closeAll();
         Serial.printf("[MUX] Kurtarma BASARILI, MUX 0x%02X\n", _addr);
     } else {
-        Serial.println("[MUX] Kurtarma BASARISIZ - MUX hala yok");
+        _ready = false;
+        Serial.printf("[MUX] Kurtarma BASARISIZ - MUX yok. Sonraki deneme %lu sn sonra.\n",
+                      (unsigned long)(MUX_RECOVER_COOLDOWN_MS / 1000));
     }
 
     _inRecovery = false;

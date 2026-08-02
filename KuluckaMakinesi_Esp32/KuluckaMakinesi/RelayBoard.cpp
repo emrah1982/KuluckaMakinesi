@@ -60,21 +60,34 @@ bool RelayBoard::writeState() {
         return true;
     }
 
-    // Basarisiz: bus'i kurtarmayi dene ve bir kez daha yaz
-    Serial.println("[RELAY] I2C yazma HATASI - bus kurtarma deneniyor");
-    if (I2CMux::recover() && writeStateOnce()) {
-        _lastWriteOK = true;
-        _consecWriteFail = 0;
-        Serial.println("[RELAY] Kurtarma sonrasi yazma OK");
-        return true;
-    }
-
     _lastWriteOK = false;
     if (_consecWriteFail < 255) _consecWriteFail++;
     _totalWriteFail++;
-    Serial.printf("[RELAY] YAZMA BASARISIZ! ardisik=%u toplam=%lu "
-                  "(roleler son durumda takili kalmis olabilir)\n",
-                  _consecWriteFail, (unsigned long)_totalWriteFail);
+
+    // ONEMLI: Bus kurtarmayi ILK hatada tetiklemiyoruz.
+    // Isitici rolesi her dongude yazilir. PCF8574 hic TAKILI DEGILSE her
+    // yazma basarisiz olur; ilk hatada kurtarma cagirmak, saglam bir bus'i
+    // her dongude yikip yeniden kuran sonsuz bir kurtarma dongusu yaratir
+    // (sahada tam olarak bu yasandi). Kurtarma ancak ardisik hata esigi
+    // asilinca denenir; I2CMux tarafinda ayrica cooldown var.
+    bool retried = false;
+    if (_consecWriteFail == RELAY_WRITE_FAIL_LIMIT) {
+        Serial.println("[RELAY] Ardisik yazma hatasi - bus kurtarma deneniyor");
+        if (I2CMux::recover() && writeStateOnce()) {
+            _lastWriteOK = true;
+            _consecWriteFail = 0;
+            Serial.println("[RELAY] Kurtarma sonrasi yazma OK");
+            return true;
+        }
+        retried = true;
+    }
+
+    // Log spam'i onle: her dongude degil, esikte ve her 50 hatada bir yaz
+    if (retried || (_consecWriteFail % 50) == 0) {
+        Serial.printf("[RELAY] YAZMA BASARISIZ! ardisik=%u toplam=%lu "
+                      "(role karti takili mi? roleler son durumda kalir)\n",
+                      _consecWriteFail, (unsigned long)_totalWriteFail);
+    }
     return false;
 }
 

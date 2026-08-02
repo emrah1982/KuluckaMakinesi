@@ -447,6 +447,10 @@
 // senaryodur. Takilan slave SDA'yi LOW tutarsa bus komple kilitlenir; bu
 // durumda SCL'e manuel darbe gonderip slave'in birakmasi saglanir.
 #define MUX_FAIL_LIMIT          3    // Art arda kanal secim hatasi -> bus kurtarma
+// Iki kurtarma denemesi arasi minimum sure. Kurtarma bus'i yikip yeniden
+// kurdugu ve 8 adres taradigi icin pahalidir; TAKILI OLMAYAN bir cihaz
+// yuzunden her dongude tetiklenirse sistem kurtarma dongusunde kilitlenir.
+#define MUX_RECOVER_COOLDOWN_MS 10000
 #define I2C_RECOVER_PULSES      9    // Takilan slave'i birakmak icin SCL darbe sayisi
 #define I2C_RECOVER_PULSE_US    5    // Darbe yari periyodu (us) -> ~100kHz
 #define RELAY_WRITE_FAIL_LIMIT  3    // Art arda role yazma hatasi -> IO arizasi
