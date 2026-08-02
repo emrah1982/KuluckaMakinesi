@@ -1,0 +1,11 @@
+{
+  "kp": 20,
+  "ki": 0.8,
+  "kd": 5,
+  "profileIndex": 0,
+  "isCustomProfile": false,
+  "targetTemp": 37.8,
+  "humLow": 55,
+  "humHigh": 65,
+  "ssid": "WIFI_ADI"
+}

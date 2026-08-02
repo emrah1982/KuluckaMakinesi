@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Kulucka</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+<div class="hdr-left">
+    <span class="hdr-icon" id="pb-icon">&#128051;</span>
+    <div>
+        <div class="hdr-title" id="pb-name">---</div>
+        <div class="hdr-sub" id="pb-detail">Gun - / -</div>
+    </div>
+</div>
+<div class="hdr-right">
+    <span class="badge" id="pb-state">---</span>
+    <span class="dot" id="conn-dot"></span>
+</div>
+</header>
+
+<!-- TAB BAR (alt nav - dokunmatik uyumlu) -->
+<nav class="tab-bar" id="tab-bar">
+<button class="tb active" onclick="switchTab('dash')">&#9670;<br><small>Durum</small></button>
+<button class="tb" onclick="switchTab('ctrl')">&#9881;<br><small>Kontrol</small></button>
+<button class="tb" onclick="switchTab('prof')">&#128051;<br><small>Profil</small></button>
+<button class="tb" onclick="switchTab('set')">&#9878;<br><small>Ayar</small></button>
+</nav>
+
+<!-- ANA ICERIK -->
+<main>
+
+<!-- ===== DASHBOARD ===== -->
+<div class="tab active" id="tab-dash">
+
+<div class="gauge-row">
+    <div class="gauge temp">
+        <div class="g-val" id="temp">--.-</div>
+        <div class="g-lbl">&#176;C Sicaklik</div>
+        <div class="g-sub" id="temp-target">Hedef: --.-</div>
+    </div>
+    <div class="gauge hum">
+        <div class="g-val" id="hum">--.-</div>
+        <div class="g-lbl">% Nem</div>
+        <div class="g-sub" id="hum-target">Hedef: -- - --</div>
+    </div>
+</div>
+
+<div class="info-row">
+    <div class="info-box">
+        <span class="i-lbl">Evre</span>
+        <span class="i-val" id="phase">---</span>
+        <span class="i-sub" id="phase-remaining">Evre bitis: - gun</span>
+    </div>
+    <div class="info-box">
+        <span class="i-lbl">Bitise Kalan</span>
+        <span class="i-val" id="remaining-days">-</span>
+        <span class="i-sub" id="day-info">Gun - / -</span>
+    </div>
+    <div class="info-box">
+        <span class="i-lbl">Durum</span>
+        <span class="i-val" id="sys-state">---</span>
+        <span class="i-sub" id="profile-name">---</span>
+    </div>
+</div>
+
+<div class="card">
+    <div class="out-row">
+        <span class="o-lbl">Isitici</span>
+        <div class="bar"><div class="bar-f heat" id="heater-bar"></div></div>
+        <span class="o-val" id="heater-pwm">0</span>
+    </div>
+    <div class="out-row">
+        <span class="o-lbl">Fan</span>
+        <div class="bar"><div class="bar-f fan" id="fan-bar"></div></div>
+        <span class="o-val" id="fan-pwm">0</span>
+    </div>
+    <div class="out-row">
+        <span class="o-lbl">Nem</span>
+        <div class="ind" id="hum-indicator">KAPALI</div>
+    </div>
+</div>
+
+<div class="card row-between">
+    <div class="sns"><span class="s-lbl">SHT20</span><span class="s-v" id="sensor1">--</span></div>
+    <div class="sns"><span class="s-lbl">RS485</span><span class="s-v" id="sensor2">--</span></div>
+    <div class="sns"><span class="s-lbl">Çalışma Süresi</span><span class="s-v" id="uptime">--</span></div>
+    <div class="sns"><span class="s-lbl">Başlangıç Tarihi</span><span class="s-v" id="start-date">--</span></div>
+    <div class="sns"><span class="s-lbl">Çıkım Tarihi</span><span class="s-v" id="hatch-date">--</span></div>
+    <div class="sns"><span class="s-lbl">Saat</span><span class="s-v" id="rtc-time">--:--</span></div>
+    <div class="sns" id="net-info"></div>
+</div>
+
+<div class="card" id="alarm-card">
+    <div id="alarm-status" class="alarm-txt">Alarm yok</div>
+    <button class="btn red" onclick="resetSafety()">Guvenlik Sifirla</button>
+</div>
+
+</div>
+
+<!-- ===== KONTROL ===== -->
+<div class="tab" id="tab-ctrl">
+
+<div class="card">
+    <h2>Sistem Kontrol</h2>
+    <div class="btn-grid">
+        <button class="btn green big" onclick="sendControl('start')">&#9654; Baslat</button>
+        <button class="btn yellow big" onclick="sendControl('pause')">&#10074;&#10074; Duraklat</button>
+        <button class="btn blue big" onclick="sendControl('resume')">&#9654; Devam</button>
+        <button class="btn red big" onclick="sendControl('stop')">&#9632; Durdur</button>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Profil Sec</h2>
+    <select id="profile-select" class="sel"><option>Yukleniyor...</option></select>
+    <button class="btn primary full" onclick="setProfile()">Profil Uygula</button>
+</div>
+
+<div class="card">
+    <h2>PID</h2>
+    <div class="inp-row">
+        <div class="inp-g"><label>Kp</label><input type="number" id="pid-kp" step="0.1" value="20.0"></div>
+        <div class="inp-g"><label>Ki</label><input type="number" id="pid-ki" step="0.01" value="0.8"></div>
+        <div class="inp-g"><label>Kd</label><input type="number" id="pid-kd" step="0.1" value="5.0"></div>
+    </div>
+    <button class="btn primary full" onclick="setPID()">PID Guncelle</button>
+</div>
+
+<div class="card">
+    <h2>Nem Esikleri <small style="color:#64748b;font-weight:normal">(Profil bazli otomatik)</small></h2>
+    <div class="inp-row">
+        <div class="inp-g"><label>Alt %</label><input type="number" id="hum-low" step="1" value="50" readonly style="background:#e2e8f0;color:#334155;font-weight:bold"></div>
+        <div class="inp-g"><label>Ust %</label><input type="number" id="hum-high" step="1" value="55" readonly style="background:#e2e8f0;color:#334155;font-weight:bold"></div>
+    </div>
+    <p style="color:#64748b;font-size:.75rem;margin:8px 0 0">Nem esikleri secilen profile ve evreye gore otomatik ayarlanir</p>
+</div>
+
+</div>
+
+<!-- ===== PROFILLER ===== -->
+<div class="tab" id="tab-prof">
+
+<div class="card">
+    <h2>Ozel Profil Olustur</h2>
+    <div class="inp-row">
+        <div class="inp-g"><label>Ad</label><input type="text" id="cp-name" placeholder="Serce"></div>
+        <div class="inp-g"><label>EN</label><input type="text" id="cp-nameEN" placeholder="Sparrow"></div>
+    </div>
+    <div class="inp-row">
+        <div class="inp-g"><label>Gun</label><input type="number" id="cp-days" min="1" max="60" value="21"></div>
+        <div class="inp-g"><label>Evre</label><input type="number" id="cp-phases" min="1" max="4" value="3" onchange="updatePhaseForm()"></div>
+    </div>
+    <div id="phase-forms">
+        <div class="ph" id="phase-0"><b>Evre 1</b><div class="ph-g">
+            <input type="number" id="cp-p0-start" placeholder="Bas" min="1">
+            <input type="number" id="cp-p0-end" placeholder="Bit" min="1">
+            <input type="number" id="cp-p0-temp" placeholder="C" step="0.1">
+            <input type="number" id="cp-p0-humLow" placeholder="N%" step="1">
+            <input type="number" id="cp-p0-humHigh" placeholder="N%" step="1">
+            <select id="cp-p0-turning"><option value="1">Cev+</option><option value="0">Cev-</option></select>
+            <input type="text" id="cp-p0-name" placeholder="Ad" value="Gelisim-1">
+        </div></div>
+        <div class="ph" id="phase-1"><b>Evre 2</b><div class="ph-g">
+            <input type="number" id="cp-p1-start" placeholder="Bas" min="1">
+            <input type="number" id="cp-p1-end" placeholder="Bit" min="1">
+            <input type="number" id="cp-p1-temp" placeholder="C" step="0.1">
+            <input type="number" id="cp-p1-humLow" placeholder="N%" step="1">
+            <input type="number" id="cp-p1-humHigh" placeholder="N%" step="1">
+            <select id="cp-p1-turning"><option value="1">Cev+</option><option value="0">Cev-</option></select>
+            <input type="text" id="cp-p1-name" placeholder="Ad" value="Gelisim-2">
+        </div></div>
+        <div class="ph" id="phase-2"><b>Evre 3</b><div class="ph-g">
+            <input type="number" id="cp-p2-start" placeholder="Bas" min="1">
+            <input type="number" id="cp-p2-end" placeholder="Bit" min="1">
+            <input type="number" id="cp-p2-temp" placeholder="C" step="0.1">
+            <input type="number" id="cp-p2-humLow" placeholder="N%" step="1">
+            <input type="number" id="cp-p2-humHigh" placeholder="N%" step="1">
+            <select id="cp-p2-turning"><option value="1">Cev+</option><option value="0" selected>Cev-</option></select>
+            <input type="text" id="cp-p2-name" placeholder="Ad" value="Cikim">
+        </div></div>
+        <div class="ph hide" id="phase-3"><b>Evre 4</b><div class="ph-g">
+            <input type="number" id="cp-p3-start" placeholder="Bas" min="1">
+            <input type="number" id="cp-p3-end" placeholder="Bit" min="1">
+            <input type="number" id="cp-p3-temp" placeholder="C" step="0.1">
+            <input type="number" id="cp-p3-humLow" placeholder="N%" step="1">
+            <input type="number" id="cp-p3-humHigh" placeholder="N%" step="1">
+            <select id="cp-p3-turning"><option value="1">Cev+</option><option value="0">Cev-</option></select>
+            <input type="text" id="cp-p3-name" placeholder="Ad" value="Evre-4">
+        </div></div>
+    </div>
+    <button class="btn green full" onclick="saveCustomProfile()">Profili Kaydet</button>
+</div>
+
+<div class="card">
+    <h2>Kayitli Profiller</h2>
+    <div id="custom-profiles-list">Yukleniyor...</div>
+    <button class="btn primary full" onclick="loadCustomProfiles()">Yenile</button>
+</div>
+
+</div>
+
+<!-- ===== AYARLAR ===== -->
+<div class="tab" id="tab-set">
+
+<div class="card">
+    <h2>Ayarlar</h2>
+    <div class="btn-grid">
+        <button class="btn green big" onclick="saveSettings()">Kaydet</button>
+        <button class="btn blue big" onclick="loadSettings()">Yukle</button>
+    </div>
+</div>
+
+<div class="card">
+    <h2>WiFi</h2>
+    <div class="inp-row">
+        <div class="inp-g"><label>SSID</label><input type="text" id="wifi-ssid" placeholder="WiFi adi"></div>
+        <div class="inp-g"><label>Sifre</label><input type="password" id="wifi-pass" placeholder="Sifre"></div>
+    </div>
+    <button class="btn primary full" onclick="saveWiFi()">WiFi Kaydet</button>
+</div>
+
+<div class="card">
+    <h2>Log</h2>
+    <div class="btn-grid">
+        <button class="btn primary big" onclick="downloadLog()">CSV Indir</button>
+        <button class="btn red big" onclick="clearLog()">Temizle</button>
+    </div>
+</div>
+
+</div>
+
+</main>
+
+<div id="toast" class="toast hide"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

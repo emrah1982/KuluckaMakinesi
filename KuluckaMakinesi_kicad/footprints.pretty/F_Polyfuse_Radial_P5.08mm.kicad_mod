@@ -1,0 +1,32 @@
+(footprint "F_Polyfuse_Radial_P5.08mm" (version 20221018) (generator pcbnew)
+  (layer "F.Cu")
+  (descr "PTC Polyfuse radial THT, 5.08mm pitch, body ~9x3.5mm. Yeniden ayarlanabilir sigorta. 1A=5V hatti / 3A=24V hatti koruma")
+  (tags "polyfuse PTC fuse radial THT resettable")
+  (attr through_hole)
+  (fp_text reference "F**" (at 2.54 -2.8) (layer "F.SilkS")
+    (effects (font (size 0.8 0.8) (thickness 0.12))))
+  (fp_text value "1A_PTC" (at 2.54 2.8) (layer "F.Fab")
+    (effects (font (size 0.8 0.8) (thickness 0.12))))
+  (fp_text user "${REFERENCE}" (at 2.54 0) (layer "F.Fab")
+    (effects (font (size 0.6 0.6) (thickness 0.1))))
+
+  (fp_line (start -1.5 -1.7) (end 6.6 -1.7) (layer "F.SilkS") (width 0.12))
+  (fp_line (start 6.6 -1.7) (end 6.6 1.7) (layer "F.SilkS") (width 0.12))
+  (fp_line (start 6.6 1.7) (end -1.5 1.7) (layer "F.SilkS") (width 0.12))
+  (fp_line (start -1.5 1.7) (end -1.5 -1.7) (layer "F.SilkS") (width 0.12))
+
+  (fp_line (start -1.5 -1.7) (end 6.6 -1.7) (layer "F.Fab") (width 0.1))
+  (fp_line (start 6.6 -1.7) (end 6.6 1.7) (layer "F.Fab") (width 0.1))
+  (fp_line (start 6.6 1.7) (end -1.5 1.7) (layer "F.Fab") (width 0.1))
+  (fp_line (start -1.5 1.7) (end -1.5 -1.7) (layer "F.Fab") (width 0.1))
+
+  (fp_text user "F" (at 2.54 0) (layer "F.SilkS") (effects (font (size 1.2 1.2) (thickness 0.2) bold)))
+
+  (fp_line (start -1.8 -2) (end 6.9 -2) (layer "F.CrtYd") (width 0.05))
+  (fp_line (start 6.9 -2) (end 6.9 2) (layer "F.CrtYd") (width 0.05))
+  (fp_line (start 6.9 2) (end -1.8 2) (layer "F.CrtYd") (width 0.05))
+  (fp_line (start -1.8 2) (end -1.8 -2) (layer "F.CrtYd") (width 0.05))
+
+  (pad "1" thru_hole rect   (at 0 0) (size 2.0 2.0) (drill 1.0) (layers *.Cu *.Mask))
+  (pad "2" thru_hole circle (at 5.08 0) (size 2.0 2.0) (drill 1.0) (layers *.Cu *.Mask))
+)

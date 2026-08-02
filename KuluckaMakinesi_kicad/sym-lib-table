@@ -1,0 +1,3 @@
+(sym_lib_table
+  (lib (name "KuluckaMakinesi_Modules")(type "KiCad")(uri "${KIPRJMOD}/library/KuluckaMakinesi_Modules.kicad_sym")(options "")(descr "Kuluçka Makinesi modülleri (PCF8574, TCA9548A, SHT40, PAM8403, DRV8825, DS3231, NEMA17)"))
+)

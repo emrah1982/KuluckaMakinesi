@@ -1,0 +1,13 @@
+{
+  "name": "kulucka-mock-api",
+  "version": "1.0.0",
+  "description": "ESP32 Kulucka Makinesi Mock API",
+  "main": "mock-server.js",
+  "scripts": {
+    "start": "node mock-server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  }
+}

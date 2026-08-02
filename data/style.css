@@ -1,0 +1,139 @@
+*{margin:0;padding:0;box-sizing:border-box}
+html{font-size:16px;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f2f5;color:#1e293b;min-height:100vh;padding-bottom:72px;-webkit-user-select:none;-moz-user-select:none;user-select:none;overflow-x:hidden}
+
+/* HEADER */
+header{background:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #e2e8f0;position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.hdr-left{display:flex;align-items:center;gap:10px;min-width:0}
+.hdr-icon{font-size:2.2rem;line-height:1}
+.hdr-title{font-size:1rem;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr-sub{font-size:0.72rem;color:#64748b}
+.hdr-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.badge{font-size:0.68rem;font-weight:700;padding:4px 10px;border-radius:14px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;background:#e2e8f0;color:#64748b}
+.badge.st-running{background:#16a34a;color:#fff}
+.badge.st-paused{background:#d97706;color:#fff}
+.badge.st-stopped{background:#94a3b8;color:#fff}
+.badge.st-tuning{background:#7c3aed;color:#fff}
+.badge.st-done{background:#2563eb;color:#fff}
+.badge.st-alarm{background:#dc2626;color:#fff;animation:blink 1s infinite}
+.dot{width:10px;height:10px;border-radius:50%;background:#16a34a;flex-shrink:0}
+.dot.err{background:#dc2626}
+@keyframes blink{50%{opacity:.4}}
+
+/* TAB BAR - ALTTA SABIT */
+.tab-bar{position:fixed;bottom:0;left:0;right:0;z-index:100;display:flex;background:#fff;border-top:2px solid #e2e8f0;padding:0;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -1px 4px rgba(0,0,0,.06)}
+.tb{flex:1;padding:8px 4px 6px;background:none;border:none;color:#94a3b8;font-size:1.2rem;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color .15s}
+.tb small{display:block;font-size:0.62rem;margin-top:2px;font-weight:600}
+.tb.active{color:#2563eb}
+.tb:active{background:rgba(37,99,235,.06)}
+
+/* TAB CONTENT */
+main{max-width:480px;margin:0 auto;padding:10px 10px 80px}
+.tab{display:none;flex-direction:column;gap:10px}
+.tab.active{display:flex}
+
+/* GAUGE ROW - buyuk sicaklik/nem gostergesi */
+.gauge-row{display:flex;gap:10px}
+.gauge{flex:1;background:#fff;border-radius:14px;padding:18px 12px;text-align:center;border:1px solid #e2e8f0;position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.gauge.temp{border-left:4px solid #dc2626}
+.gauge.hum{border-left:4px solid #2563eb}
+.g-val{font-size:2.6rem;font-weight:800;color:#0f172a;line-height:1}
+.g-lbl{font-size:0.75rem;color:#64748b;margin-top:4px;text-transform:uppercase}
+.g-sub{font-size:0.68rem;color:#94a3b8;margin-top:2px}
+
+/* INFO ROW */
+.info-row{display:flex;gap:10px}
+.info-box{flex:1;background:#fff;border-radius:10px;padding:12px;text-align:center;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.i-lbl{display:block;font-size:0.65rem;color:#64748b;text-transform:uppercase}
+.i-val{display:block;font-size:1.1rem;font-weight:700;color:#0f172a;margin:2px 0}
+.i-sub{display:block;font-size:0.65rem;color:#64748b}
+
+/* CARD */
+.card{background:#fff;border-radius:12px;padding:14px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.card h2{font-size:0.82rem;color:#64748b;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
+.row-between{display:flex;justify-content:space-around;align-items:center;flex-wrap:wrap;gap:6px}
+
+/* CIKIS BARLARI */
+.out-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.out-row:last-child{margin-bottom:0}
+.o-lbl{width:56px;font-size:0.78rem;color:#475569;flex-shrink:0}
+.bar{flex:1;height:22px;background:#f1f5f9;border-radius:11px;overflow:hidden;border:1px solid #e2e8f0}
+.bar-f{height:100%;border-radius:11px;transition:width .5s;width:0}
+.bar-f.heat{background:linear-gradient(90deg,#f59e0b,#ef4444)}
+.bar-f.fan{background:linear-gradient(90deg,#06b6d4,#3b82f6)}
+.o-val{width:32px;text-align:right;font-weight:700;font-size:0.8rem;flex-shrink:0;color:#334155}
+.ind{flex:1;text-align:center;padding:6px;border-radius:8px;font-size:0.78rem;font-weight:700;background:#f1f5f9;color:#94a3b8}
+.ind.on{background:#16a34a;color:#fff}
+
+/* SENSOR SATIRI */
+.sns{text-align:center;padding:4px 6px}
+.s-lbl{display:block;font-size:0.6rem;color:#64748b;text-transform:uppercase}
+.s-v{display:block;font-size:0.78rem;font-weight:600;color:#475569}
+.s-ok{color:#16a34a}
+.s-err{color:#dc2626}
+
+/* ALARM */
+#alarm-card.al{border-color:#dc2626;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{border-color:#dc2626}50%{border-color:#e2e8f0}}
+.alarm-txt{padding:8px;border-radius:8px;background:#f8fafc;margin-bottom:10px;font-size:0.82rem;color:#334155}
+
+/* BUTONLAR - min 48px dokunma alani */
+.btn{padding:14px 18px;border:none;border-radius:10px;font-size:0.9rem;font-weight:700;cursor:pointer;touch-action:manipulation;min-height:48px;transition:transform .1s,box-shadow .15s;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.btn:active{transform:scale(.96);box-shadow:none}
+.btn.primary{background:#2563eb;color:#fff}
+.btn.green{background:#16a34a;color:#fff}
+.btn.yellow{background:#d97706;color:#fff}
+.btn.blue{background:#0891b2;color:#fff}
+.btn.red{background:#dc2626;color:#fff}
+.btn.full{width:100%;margin-top:10px}
+.btn.big{flex:1;min-width:0}
+.btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* INPUT - buyuk dokunma hedefi */
+input,select{padding:12px;border-radius:10px;border:1px solid #cbd5e1;background:#f8fafc;color:#1e293b;font-size:1rem;outline:none;width:100%;min-height:48px;-webkit-appearance:none;-moz-appearance:none;appearance:none}
+input[type="number"]::-webkit-inner-spin-button,input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+input[type="number"]{-moz-appearance:textfield}
+input:focus,select:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.sel{margin-bottom:4px}
+label{display:block;font-size:0.7rem;color:#475569;text-transform:uppercase;margin-bottom:3px}
+
+/* INPUT ROW */
+.inp-row{display:flex;gap:8px;margin-bottom:8px}
+.inp-g{flex:1;min-width:0}
+
+/* EVRE FORMU */
+.ph{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-bottom:6px}
+.ph b{display:block;font-size:0.7rem;color:#7c3aed;text-transform:uppercase;margin-bottom:6px}
+.ph-g{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.ph-g input,.ph-g select{padding:10px 6px;font-size:0.85rem;min-height:42px}
+
+/* OZEL PROFIL LISTESI */
+.cp-c{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.cp-i{flex:1;min-width:0}
+.cp-i strong{color:#1e293b;font-size:0.88rem}
+.cp-i span{display:block;font-size:0.7rem;color:#64748b;margin-top:1px}
+.cp-a{display:flex;gap:6px}
+.btn-s{padding:10px 14px;font-size:0.78rem;border:none;border-radius:8px;cursor:pointer;font-weight:700;min-height:40px}
+.btn-s.del{background:#dc2626;color:#fff}
+.btn-s.use{background:#16a34a;color:#fff}
+
+/* TOAST */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#334155;color:#fff;padding:12px 24px;border-radius:10px;font-size:0.88rem;font-weight:600;z-index:300;transition:opacity .3s;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.toast.hide{opacity:0;pointer-events:none}
+.toast.show{opacity:1}
+.toast.ok{background:#16a34a;color:#fff}
+.toast.err{background:#dc2626;color:#fff}
+
+.hide{display:none!important}
+
+/* NET INFO (kucuk) */
+#net-info{font-size:.6rem;color:#64748b;text-align:center;line-height:1.3}
+#net-info .ab{color:#d97706;font-weight:600}
+#net-info .sb{color:#2563eb;font-weight:600}
+
+/* RESPONSIVE */
+@media(max-width:360px){
+.g-val{font-size:2rem}
+.ph-g{grid-template-columns:1fr 1fr}
+.btn-grid{grid-template-columns:1fr}
+}

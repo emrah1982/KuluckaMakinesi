@@ -1,0 +1,32 @@
+# --- Claude Code yerel ayarlari ---
+# ANTHROPIC_AUTH_TOKEN yuvasi icerir; gercek anahtar yazilirsa sizmamali
+.claude/settings.local.json
+
+# --- Arduino / PlatformIO derleme ciktilari ---
+build/
+.pio/
+*.bin
+*.elf
+*.map
+*.hex
+
+# --- KiCad yedek ve gecici dosyalar ---
+# .history/: KiCad'in otomatik urettigi yerel gecmis klasoru. Kendi ic .git'i
+# oldugu icin ust depoda submodule gibi gorunup "add" islemini kirar.
+.history/
+*-backups/
+*.kicad_prl
+*.kicad_pcb-bak
+*.kicad_sch-bak
+fp-info-cache
+*.bak
+
+# --- Node (docker/mock-server) ---
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# --- Isletim sistemi / OneDrive ---
+Thumbs.db
+desktop.ini
+.DS_Store

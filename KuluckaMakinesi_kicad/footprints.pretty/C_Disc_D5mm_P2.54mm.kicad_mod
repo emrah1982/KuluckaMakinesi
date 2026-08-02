@@ -1,0 +1,23 @@
+(footprint "C_Disc_D5mm_P2.54mm" (version 20221018) (generator pcbnew)
+  (layer "F.Cu")
+  (descr "Seramik disc kapasitor THT, 5mm cap, 2.54mm pitch. 100nF MLCC/disc decoupling kullanimi")
+  (tags "capacitor ceramic disc decoupling THT")
+  (attr through_hole)
+  (fp_text reference "C**" (at 1.27 -3.2) (layer "F.SilkS")
+    (effects (font (size 0.8 0.8) (thickness 0.12))))
+  (fp_text value "100nF" (at 1.27 3.2) (layer "F.Fab")
+    (effects (font (size 0.8 0.8) (thickness 0.12))))
+  (fp_text user "${REFERENCE}" (at 1.27 0) (layer "F.Fab")
+    (effects (font (size 0.6 0.6) (thickness 0.1))))
+
+  (fp_circle (center 1.27 0) (end 3.77 0) (layer "F.SilkS") (width 0.12) (fill none))
+  (fp_circle (center 1.27 0) (end 3.77 0) (layer "F.Fab") (width 0.1) (fill none))
+
+  (fp_line (start -1.5 -2.7) (end 4.04 -2.7) (layer "F.CrtYd") (width 0.05))
+  (fp_line (start 4.04 -2.7) (end 4.04 2.7) (layer "F.CrtYd") (width 0.05))
+  (fp_line (start 4.04 2.7) (end -1.5 2.7) (layer "F.CrtYd") (width 0.05))
+  (fp_line (start -1.5 2.7) (end -1.5 -2.7) (layer "F.CrtYd") (width 0.05))
+
+  (pad "1" thru_hole rect   (at 0 0) (size 1.6 1.6) (drill 0.8) (layers *.Cu *.Mask))
+  (pad "2" thru_hole circle (at 2.54 0) (size 1.6 1.6) (drill 0.8) (layers *.Cu *.Mask))
+)

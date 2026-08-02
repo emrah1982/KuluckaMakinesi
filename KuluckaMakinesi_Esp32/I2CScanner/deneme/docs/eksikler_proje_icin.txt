@@ -1,0 +1,200 @@
+KRİTİK SORUNLAR
+1. TurnerDriver Motor Yön Hatası
+TurnerDriver.cpp:79 ve satır 98'de motor yönü ters. setMotor(false) aslında İLERİ yönde çalıştırıyor (RelayBoard::setTurnerDirection(!forward) nedeniyle):
+
+
+HOLD_FWD → REVERSE geçişi: setMotor(false) çağrılıyor → ama bu İLERİ demek!
+HOLD_REV → FORWARD geçişi: setMotor(true) çağrılıyor → ama bu GERİ demek!
+Yumurta sürekli aynı yöne gidip geliyor, doğru çevrilmiyor.
+
+2. Duplicate Depolama Sistemi
+StorageService ve PersistentStorage adında iki ayrı NVS sistemi var:
+
+PersistentStorage IncubationService.h'da tanımlı ama hiç initialize edilmiyor (begin() çağrılmıyor)
+Aynı NVS namespace'i ("kulucka") kullanıyorlar — potansiyel çakışma
+PersistentStorage'daki saveIncubationState() / loadIncubationState() ölü kod
+3. PID Autotune Sonuçları Kaydedilmiyor
+PIDController.cpp — autotune tamamlandığında hesaplanan Kp/Ki/Kd değerleri NVS'ye yazılmıyor. Güç kesilince tüm tuning kaybolur.
+
+YÜKSEK ÖNEMLİ EKSİKLER
+4. Güç Kesintisi Kurtarma YOK
+Kuluçka sırasında güç kesilirse sistem tamamen sıfırdan başlıyor. Kaçıncı gün olduğu, hangi evrede olduğu kaybolur. Gerçek bir kuluçka makinesi için bu ölümcül bir eksik.
+
+5. Web API Handler'ları Eksik
+WebService.h'da tanımlı ama implement edilmemiş handler'lar:
+
+handleGetCustomProfiles()
+handlePostCustomProfile()
+handleDeleteCustomProfile()
+handlePostWiFi()
+handleGetLog() / handleDeleteLog()
+6. Sensör Uyumsuzluğu Alarm Vermiyor
+SensorManager.cpp — iki sensör birbirinden saparsa Serial.printf() ile debug mesaj yazıyor ama AlarmService'e bildirim yok. Kullanıcı sensör arızasından habersiz kalır.
+
+7. Pause Modunda Alarm Kontrol Edilmiyor
+IncubationService.cpp:71-76 — SYS_PAUSED durumunda _alarm.check() atlanıyor. Kuluçka duraklıyken sıcaklık tehlikeli seviyeye çıksa bile alarm çalmaz.
+
+8. RTC Başlangıç Tarihi İki Kez Set Ediliyor
+IncubationService.cpp:127 (autotune bittiğinde) ve satır 294 (start() çağrıldığında) — aynı tarih iki kez yazılıyor, bazı senaryolarda gün sayacı bozulabilir.
+
+ORTA ÖNEMLİ EKSİKLER
+9. Config.h Kanal Çakışması
+Config.h:8 yorum: "CH1 -> PCF8574" yazıyor ama tanım MUX_CH_RELAY = 2 (CH2). Donanımda hangisi doğru?
+
+10. OTA Güncelleme Eksik
+Config.h'da OTA_HOSTNAME ve OTA_PASSWORD tanımlı ama kodda ArduinoOTA entegrasyonu yok.
+
+11. Büyük Yumurta İçin Soğutma/Püskürtme Sistemi Yok
+AnimalProfiles.h'da Kaz ve Ördek için "günlük soğutma + su püskürtme önerilir" yazıyor ama:
+
+IncubationPhase'de soğutma alanı yok
+Soğutma driver'ı yok
+Püskürtme mekanizması yok
+12. WiFi Yeniden Bağlanma Yok
+WebService'de WiFi bağlantısı bir kez deneniyor, başarısız olursa bir daha denemiyor.
+
+13. Nem Eşikleri Doğrulanmıyor
+setThresholds(low, high) — low > high ayarlanabilir, humidifier düzgün çalışmaz.
+
+DÜŞÜK ÖNEMLİ
+Sorun	Açıklama
+RTCManager::getModuleTemperature()	Hiç çağrılmıyor — ölü kod
+DisplayData stack'te	Her loop'ta ~128 byte stack allokasyonu
+Log ring buffer	Sadece 200 giriş (~3.3 saat), güç kesilince kaybolur
+Custom profile validasyonu yok	0 evreli veya startDay > endDay profil eklenebilir
+ÖNCELİK SIRASI
+Düzeltilmesi gereken sıra:
+
+TurnerDriver motor yön hatası (en acil — yumurtalar yanlış çevriliyor)
+PersistentStorage temizliği (ölü kod kaldır, StorageService'e taşı)
+Güç kesintisi kurtarma ekle
+PID autotune sonuçlarını NVS'ye kaydet
+Sensör uyumsuzluğu alarmı ekle
+Pause modunda alarm kontrolü ekle
+Hangi sorunlardan başlamamı istersin?
+
+
+******************************
+Projeyi 3 katmanda detaylı inceledim. Aşağıda her bölüm için eksikler ve yapılması gerekenler var. Önceliklendirme: 🔴 Kritik, 🟡 Önemli, 🟢 İyileştirme.
+
+1️⃣ Web Arayüzü (WebService.cpp + web_server.cpp)
+Eksikler
+🔴 Kritik
+Güvenlik yok — Hiç kimlik doğrulama (basic auth / token) yok. Aynı ağdaki herkes kuluçkayı durdurabilir, profil silebilir, OTA güncelleyebilir.
+HTTPS yok — WiFi şifresi /api/wifi/connect'e plaintext gidiyor. AP mod'da kritik.
+Captive portal'da bağlantı sonrası otomatik yönlendirme yok — Kullanıcı resimde gösterdiği gibi "Basariyla baglanildi" yazısını görüp manuel adres yazıyor.
+CSRF koruması yok — Tüm POST'lar açık.
+🟡 Önemli
+WebSocket eksik — UI her 1-3 sn'de /api/status polling yapıyor. Gerçek zamanlı değil, gereksiz trafik.
+Grafik veri yok — _tempHistory[] buffer ESP32'de tutuluyor ama JS tarafında çizilmiyor (Canvas/Chart eksik).
+Alarm geçmişi sayfası yok — Sadece anlık alarm görünür. Hangi gün hangi alarm tetiklendi bilinmiyor.
+Olay logu eksik — Profil değişikliği, manuel müdahale, faz geçişi loglanmıyor.
+Form validasyonu zayıf — Profil editöründe negatif sıcaklık, 200°C gibi değerler engellenmiyor.
+🟢 İyileştirme
+PWA / offline desteği yok — Manifest, service worker yok.
+Çoklu dil yok — Sadece Türkçe sabit.
+Yumurta sayısı 1 alanla sınırlı — Tipini (kuluçka pozisyon, tepsi numarası) izlemiyor.
+mDNS discovery progress zayıf — sadece "Araniyor..." yazıyor, zaman tahmini yok.
+Yapılması Gerekenler
+/api/* endpoint'lerine basit token-based auth (NVS'de saklı, ilk açılışta üret)
+WebSocket eklenip /ws ile push-based status
+Chart.js veya inline Canvas ile 24h sıcaklık/nem grafiği
+Captive portal'da <meta refresh> veya JS ile WiFi bağlandıktan 5 sn sonra Yeni adres'e otomatik yönlendir
+Alarm history: StorageService içine son 50 alarm circular buffer (timestamp + type + message)
+Profil editöründe min/max client-side + sunucu-side validation (ör. setpoint 25-45°C arası)
+2️⃣ Yumurta Sıcaklık Servisi (EggTempService.cpp + Yumurta_Esp32)
+Eksikler
+🔴 Kritik
+Kontrol döngüsünde KULLANILMIYOR — _eggTempSvc.getEggTemp() sadece ekranda gösteriliyor. PID, alarm sistemi, faz yönetimi yumurta sıcaklığına BAKMIYOR. Bu projedeki en büyük mantıksal eksiklik.
+Yumurta cihazı düşerse alarm yok — valid=false olunca sessizce devam ediyor. Asıl amacı (yumurtanın iç sıcaklığını izlemek) iptal oluyor.
+WiFi STA zorunluluğu — Kuluçka cihazı offline çalışırken (AP modunda) yumurta verisi alınamıyor. Birbirleriyle direkt AP-AP iletişimi yok.
+🟡 Önemli
+Tek nokta okuma — Tek MLX90614 / GY-906. Spike filtreleme yok, ham veri.
+cpp
+// EggTempService.cpp line 187:
+if (ok) self->_eggTemp = et;   // moving average yok!
+Kalibrasyon offset'i yok — IR sensör genelde -1 ile +2°C arası kayma yapar.
+10 sn fetch interval — Hızlı sıcaklık değişimleri (kuluçka kapağı açma gibi) geç algılanıyor.
+HTTP timeout 2 sn — Yavaş WiFi'da fail. Retry mekanizması yok.
+Yumurta cihazı OTA yolu yok — Ana cihaz güncellenebiliyor, yumurta cihazı el ile USB.
+DHCP IP değişirse — setIP() ile saklanıyor ama DHCP lease bittiğinde yeni IP alınca ana cihaz tekrar discoveryTask çalıştırmıyor (otomatik recovery yok).
+🟢 İyileştirme
+Birden fazla yumurta sensörü — Şu an 1 cihaz = 1 değer. Tepside 5-10 yumurta için ayrı IR'lar yok.
+Sıcaklık geçmişi — Yumurta sıcaklığı zaman içinde nasıl değişiyor grafiği yok.
+Enerji/yumurta gelişimi modeli yok — Yumurta sıcaklık eğrisinden civciv gelişim aşaması tahmini yapılabilir.
+mDNS fallback — Bazı routerlerde mDNS bloklanır. UDP broadcast discovery alternatif eklenebilir.
+Yapılması Gerekenler
+Yumurta sıcaklığını PID + alarm sistemine entegre et:
+cpp
+// IncubationService::updateControls içine:
+float eggT = _eggTempSvc.getEggTemp();
+if (_eggTempSvc.isValid() && eggT > 0) {
+    // Yumurta sıcaklığı 38°C'yi geçerse alarm
+    if (eggT > prof->maxEggTemp) _alarm.trigger(...);
+    // Setpoint ayarında 70% ortam + 30% yumurta blend
+    float effectiveTarget = 0.7f*ambientT + 0.3f*eggT;
+}
+5-örnek moving average EggTempService içinde:
+cpp
+float _eggHistory[5]; uint8_t _idx;
+// setter: _eggHistory[_idx]=et; _idx=(_idx+1)%5; _eggTemp=avg(_eggHistory);
+Yumurta cihazına alarm endpointi: Yumurta cihazı bağlantı kaybedince ana ekranda kırmızı uyarı.
+NVS'de yumurta IP'si değişikliklerini detect etme — Bağlantı 3 kez fail olursa otomatik requestDiscovery() tetikle.
+Kalibrasyon sayfası — Yumurta IR offset'ini web'den girilebilir yap (/api/egg-cal).
+Yumurta cihazı için OTA endpoint — Ana cihazdan POST /api/egg-ota?url=... ile yumurta cihazına flash trigger gönder.
+3️⃣ Kuluçka (IncubationService.cpp + Driver'lar)
+Eksikler
+🔴 Kritik
+CO2 sensörü tamamen devre dışı — IncubationService.cpp:56-60 arasında begin() yorum içinde. Tüm CO2 alarmları simülasyon değer üzerinden çalışıyor:
+cpp
+// if (_co2Sensor.begin()) { ... } else { ... }
+DEBUG_PRINTLN("[SYS] CO2 sensor devre disi");
+Lockdown mode (son 3 gün) belirsiz — Tavuk profilinde son 3 gün çevirme DURMALI, varlık kontrolü:
+cpp
+// PhaseManager / IncubationService içinde turnerEnabled
+// son fazda intervalMin=0 mi?
+Acil durum sonrası kurtarma yok — _state == SYS_EMERGENCY olunca kullanıcı manuel reset yapana kadar hiçbir şey çalışmıyor (if (_state == SYS_EMERGENCY) return; line 188). Heater bile kapalı kalmıyor diyemeyiz ama önceki state'e dönüş yok.
+🟡 Önemli
+Sensör fusion zayıf — 2 SHT30 var. Biri arızalanırsa diğerine yumuşak geçiş yerine direkt FUSION_DIVERGED durumuna giriyor. Weighted/median yok.
+PID auto-tune yok — Sadece sabit Ki/Kp/Kd NVS'den. Gerçek Ziegler-Nichols / relay autotune yok.
+Kalibrasyon sadece offset — Slope (gain) eksik. Sıcaklık aralığında lineer olmayan sapmalar düzeltilemiyor.
+Stepper alternative test edilmemiş — TURNER_TYPE=1 (StepperTurnerDriver) kod var ama default 0. Gerçek donanım üzerinde test belirsiz.
+Cooling spray durum bilgisi sınırlı — _coolSpray.shouldOverrideHeater() basit override; spray seviyesi/süresi profil bazlı değil.
+Speaker tonları sınırlı — Tüm alarmlar aynı tona benzer. Yangın/CO2/Sensör hatası ayrımı sesli yok.
+Veri log'u sadece NVS — SD kart desteği yok. NVS sınırlı (yıllarca veri tutamaz).
+🟢 İyileştirme
+Termal homojenlik kontrolü yok — 2 SHT30 farklı noktada → fan hızı/profili sıcaklık gradyanına göre ayarlanmıyor.
+Manuel mod yok — Kullanıcı "şu anda heater %50, fan %80" gibi geçici manuel kontrol yapamıyor (test/temizlik için faydalı).
+İstatistik yok — Toplam çevirme sayısı, heater duty cycle, ortalama sıcaklık günlük/haftalık raporu yok.
+Bekleme/uyku modu yok — Boş kuluçkada düşük güç tüketimi modu yok.
+Touch debounce/multi-touch — Statik 250ms; long-press / double-tap yok.
+TFT Türkçe karakter — Tüm yazılarda i yerine ı, c yerine ç yok (font sınırı).
+Yapılması Gerekenler
+CO2 sensörünü etkinleştir — Hangi sensör (SCD30/MH-Z19?) ve neden disable edildiği netleşmeli; _co2Sensor.begin() aç + I2C bus paylaşım sorunu varsa MUX kanalı ekle.
+Lockdown mode garantisi — PhaseManager son 3 gün için turnerEnabled=false zorunlu yap (profil yapısında flag).
+PID Auto-tune (relay method):
+Setpoint etrafında ±1°C bang-bang osilasyon
+3-5 periyot ölç
+Astrom-Hagglund formülüyle Ki/Kp/Kd hesapla
+Sensör fusion iyileştir:
+cpp
+// FUSION_BOTH_OK: ortalama
+// FUSION_S1_FAIL: sadece S2
+// FUSION_S2_FAIL: sadece S1
+// FUSION_DIVERGED: önceki geçerli değeri tut + alarm
+Manuel kontrol modu — /api/manual POST: heater/fan/humidifier override (5 dk timeout sonra otomatik geri dön).
+SD kart logging (opsiyonel) — Saatlik snapshot CSV: time,temp,hum,co2,heater%,fan%,event
+Acil durum reset polisi — SYS_EMERGENCY 30 sn sonra kontrol şartları normalse otomatik SYS_PAUSED'a geç (kullanıcı bilgilendirilir).
+📋 Öncelik Sırası (Önerilen Yol Haritası)
+Sıra	Modül	İş	Süre
+1	Web	Captive portal otomatik yönlendirme (kullanıcının açık talebi)	30 dk
+2	Yumurta	Yumurta sıcaklığını alarm/PID'e entegrasyon	2-3 saat
+3	Kuluçka	CO2 sensörünü tekrar aç (donanım hazırsa)	1 saat
+4	Web	Basit token auth (/api/* koruma)	2 saat
+5	Kuluçka	Lockdown mode garantisi + manuel mod	3 saat
+6	Web	WebSocket + canlı grafik	4-5 saat
+7	Yumurta	Moving average + offset kalibrasyon	1 saat
+8	Kuluçka	PID auto-tune (relay method)	4-6 saat
+9	Web	Alarm history + olay log	3 saat
+10	Hepsi	OTA versiyon farkı kontrolü	2 saat
+Hangisini öncelikle ele almak istersiniz? #1 captive portal otomatik yönlendirme ile başlamak en doğal seçenek (zaten kullanıcının açık talebi var, hızlı kazanım).

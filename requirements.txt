@@ -1,0 +1,161 @@
+================================================================================
+  ESP32 AKILLI KULUCKA KONTROL SISTEMI - KUTUPHANE BAGIMLILIKLARI
+================================================================================
+  Gelistirme Ortami : Arduino IDE 2.x
+  Kart              : ESP32 Dev Module
+  Tarih             : 2026
+================================================================================
+
+ARDUINO IDE KART YONETICISI KURULUMU:
+--------------------------------------
+  1. Dosya > Tercihler > Ek Kart Yoneticisi URL'leri:
+     https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+
+  2. Araclar > Kart > Kart Yoneticisi > "esp32" ara
+     → "esp32 by Espressif Systems" kur (v3.3.7 veya uzeri)
+
+  3. Araclar > Kart > ESP32 Dev Module sec
+
+  4. Araclar > Partition Scheme > Default 4MB with spiffs
+
+  5. Araclar > Upload Speed > 921600
+
+================================================================================
+  KUTUPHANE LISTESI
+  Kurulum: Sketch > Include Library > Manage Libraries
+================================================================================
+
+------------------------------------------------------------------------
+1. RTClib (Adafruit)
+------------------------------------------------------------------------
+   Versiyon  : >= 2.1.4
+   Aciklama  : DS3231 RTC (gercek zamanli saat) surucusu
+   Kullanan  : src/hal/RTCManager.h
+   GitHub    : https://github.com/adafruit/RTClib
+   Kurulum   : Library Manager > "RTClib" ara > Adafruit RTClib > Install
+   NOT       : Bagimlilik olarak Adafruit BusIO otomatik yuklenir
+
+------------------------------------------------------------------------
+2. ESPAsyncWebServer (mathieucarbou fork - ESP32 core 3.x uyumlu)
+------------------------------------------------------------------------
+   Versiyon  : >= 3.6.0
+   Aciklama  : ESP32 icin asenkron web sunucu (REST API + statik dosya sunumu)
+   Kullanan  : src/service/WebService.h (web arayuz)
+   GitHub    : https://github.com/mathieucarbou/ESPAsyncWebServer
+   Kurulum   : GitHub Releases'dan ZIP indir > Sketch > Include Library > Add .ZIP Library
+   NOT       : me-no-dev versiyonu ESP32 core 3.x ile UYUMSUZDUR!
+              mathieucarbou fork'u kullanilmalidir.
+
+------------------------------------------------------------------------
+3. AsyncTCP (mathieucarbou fork - ESP32 core 3.x uyumlu)
+------------------------------------------------------------------------
+   Versiyon  : >= 3.3.2
+   Aciklama  : ESPAsyncWebServer icin gerekli TCP katmani
+   Kullanan  : ESPAsyncWebServer bagimliligi
+   GitHub    : https://github.com/mathieucarbou/AsyncTCP
+   Kurulum   : GitHub Releases'dan ZIP indir > Sketch > Include Library > Add .ZIP Library
+   NOT       : me-no-dev versiyonu ESP32 core 3.x ile UYUMSUZDUR!
+              mathieucarbou fork'u kullanilmalidir.
+
+================================================================================
+  ESP32 DAHILI KUTUPHANELER (Ekstra kurulum GEREKMEZ)
+================================================================================
+
+------------------------------------------------------------------------
+4. Wire (I2C)
+------------------------------------------------------------------------
+   Aciklama  : I2C haberlesme (TCA9546A MUX + DS3231 RTC + PCF8574 Role)
+   Kullanan  : src/hal/RTCManager.h, src/hal/RelayBoard.h
+   Kurulum   : ESP32 board paketi ile birlikte gelir
+   NOT       : TCA9546A I2C Multiplexer (0x70) uzerinden:
+              CH0 -> DS3231 RTC (0x68)
+              CH1 -> PCF8574 (0x20) -> 4'lu Role Modulu
+                P0: Isitici, P1: Nemlendirici, P2: Buzzer, P3: LED
+              Harici kutuphane GEREKMEZ (Wire.h yeterli).
+              Isitici: PID -> time-proportional role kontrol (10sn pencere)
+              Fan: L298N motor surucu (ENA=GPIO25 PWM, IN1=GPIO26, IN2=GPIO27)
+
+------------------------------------------------------------------------
+5. WiFi
+------------------------------------------------------------------------
+   Aciklama  : ESP32 WiFi baglantisi
+   Kullanan  : Web arayuz, OTA
+   Kurulum   : ESP32 board paketi ile birlikte gelir
+
+------------------------------------------------------------------------
+6. SPIFFS
+------------------------------------------------------------------------
+   Aciklama  : Flash dosya sistemi (web dosyalari + veri loglama)
+   Kullanan  : Web arayuz (HTML/CSS/JS), veri loglama
+   Kurulum   : ESP32 board paketi ile birlikte gelir
+
+------------------------------------------------------------------------
+7. HardwareSerial (Serial2 / UART2)
+------------------------------------------------------------------------
+   Aciklama  : RS485 Modbus RTU haberlesme (SHT20 sensor, MAX485 modul)
+   Kullanan  : src/hal/SensorManager.h
+   Kurulum   : ESP32 board paketi ile birlikte gelir
+   NOT       : Harici Modbus kutuphanesi GEREKMEZ. Modbus RTU frame'i
+              dogrudan SensorManager.cpp icinde olusturulur (CRC16 dahil).
+              Pinler: RX2=GPIO16, TX2=GPIO17, DE/RE=GPIO4
+
+------------------------------------------------------------------------
+8. esp_task_wdt (Watchdog)
+------------------------------------------------------------------------
+   Aciklama  : Watchdog timer (sistem donma korumasi)
+   Kullanan  : KuluckaMakinesi.ino
+   Kurulum   : ESP32 board paketi ile birlikte gelir
+
+================================================================================
+  KURULUM SIRASI (ONERILEN)
+================================================================================
+
+  Adim 1: ESP32 board paketini kur (Kart Yoneticisi)
+  Adim 2: RTClib kur (Library Manager)
+          → Adafruit BusIO otomatik gelir
+  Adim 3: AsyncTCP (mathieucarbou fork) indir ve ZIP olarak yukle (GitHub)
+          → https://github.com/mathieucarbou/AsyncTCP/releases
+  Adim 4: ESPAsyncWebServer (mathieucarbou fork) indir ve ZIP olarak yukle (GitHub)
+          → https://github.com/mathieucarbou/ESPAsyncWebServer/releases
+
+  NOT: SHT20 sensor RS485 Modbus RTU ile okunur. Harici kutuphane GEREKMEZ.
+       Modbus RTU protokolu SensorManager.cpp icinde dogrudan implemente edilmistir.
+
+================================================================================
+  SPIFFS VERI YUKLEME (Web arayuz dosyalari icin)
+================================================================================
+
+  data/ klasorundeki dosyalar (index.html, style.css, app.js)
+  ESP32'nin flash bellegine SPIFFS olarak yuklenir.
+
+  Arduino IDE 2.x'te dahili SPIFFS yukleme araci YOKTUR.
+  Asagidaki komut satirlari ile manuel yukleme yapilir:
+
+  Adim 1: SPIFFS image olustur (mkspiffs)
+  ----------------------------------------
+  mkspiffs -c data -b 4096 -p 256 -s 0x160000 spiffs.bin
+
+  Tam yol (Windows):
+  "C:\Users\<USER>\AppData\Local\Arduino15\packages\esp32\tools\mkspiffs\0.2.3\mkspiffs.exe" ^
+    -c data -b 4096 -p 256 -s 0x160000 spiffs.bin
+
+  Adim 2: SPIFFS image'i ESP32'ye yukle (esptool)
+  ------------------------------------------------
+  esptool --chip esp32 --port COM6 --baud 115200 write-flash -z 0x290000 spiffs.bin
+
+  Tam yol (Windows):
+  "C:\Users\<USER>\AppData\Local\Arduino15\packages\esp32\tools\esptool_py\5.1.0\esptool.exe" ^
+    --chip esp32 --port COM6 --baud 115200 ^
+    --before default-reset --after hard-reset ^
+    write-flash -z --flash-mode dio --flash-freq 80m --flash-size 4MB ^
+    0x290000 spiffs.bin
+
+  ONEMLI: Serial Monitor kapali olmalidir, aksi halde port mesgul hatasi alinir.
+  ONEMLI: <USER> kismini kendi kullanici adiniz ile degistirin.
+  ONEMLI: COM6 kismini ESP32'nin baglandigi COM portu ile degistirin.
+
+  Partition tablosu (default 4MB with spiffs):
+    spiffs offset : 0x290000
+    spiffs size   : 0x160000 (1,441,792 bytes)
+
+================================================================================

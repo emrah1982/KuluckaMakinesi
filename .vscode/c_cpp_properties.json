@@ -1,0 +1,43 @@
+{
+    "configurations": [
+        {
+            "name": "ESP32",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/Users/Emrah/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.7/cores/esp32",
+                "C:/Users/Emrah/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.7/variants/d1_uno32",
+                "C:/Users/Emrah/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.7/libraries/**",
+                "C:/Users/Emrah/AppData/Local/Arduino15/packages/esp32/tools/esp-x32/2511/xtensa-esp-elf/include/**",
+                "C:/Users/Emrah/AppData/Local/Arduino15/packages/esp32/tools/esp-x32/2511/lib/gcc/xtensa-esp-elf/14.2.0/include",
+                "C:/Users/Emrah/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/**",
+                "C:/Users/Emrah/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/freertos/FreeRTOS-Kernel/include",
+                "C:/Users/Emrah/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/freertos/FreeRTOS-Kernel/portable/xtensa/include",
+                "C:/Users/Emrah/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/include/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos",
+                "C:/Users/Emrah/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7/qio_qspi/include",
+                "C:/Users/Emrah/OneDrive/Belgeler/Arduino/libraries/**"
+            ],
+            "defines": [
+                "ESP32",
+                "ARDUINO=10819",
+                "ARDUINO_ESP32_DEV",
+                "ARDUINO_ARCH_ESP32",
+                "ARDUINO_D1_UNO32"
+            ],
+            "compilerPath": "C:/Users/Emrah/AppData/Local/Arduino15/packages/esp32/tools/esp-x32/2511/bin/xtensa-esp-elf-gcc.exe",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "gcc-x86",
+            "browse": {
+                "path": [
+                    "${workspaceFolder}",
+                    "C:/Users/Emrah/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.7",
+                    "C:/Users/Emrah/AppData/Local/Arduino15/packages/esp32/tools/esp32-libs/3.3.7",
+                    "C:/Users/Emrah/AppData/Local/Arduino15/packages/esp32/tools/esp-x32/2511",
+                    "C:/Users/Emrah/OneDrive/Belgeler/Arduino/libraries"
+                ],
+                "limitSymbolsToIncludedHeaders": false
+            }
+        }
+    ],
+    "version": 4
+}

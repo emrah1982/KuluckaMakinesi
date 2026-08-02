@@ -1,0 +1,19 @@
+services:
+  # Web arayuzu icin nginx sunucusu
+  web:
+    image: nginx:alpine
+    ports:
+      - "8088:80"
+    volumes:
+      - ../data:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+
+  # Mock API sunucusu (ESP32 simulasyonu)
+  api:
+    build: .
+    ports:
+      - "3088:3000"
+    environment:
+      - NODE_ENV=development

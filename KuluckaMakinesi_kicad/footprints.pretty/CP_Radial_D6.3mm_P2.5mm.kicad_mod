@@ -1,0 +1,27 @@
+(footprint "CP_Radial_D6.3mm_P2.5mm" (version 20221018) (generator pcbnew)
+  (layer "F.Cu")
+  (descr "Elektrolit kapasitor THT radial, 6.3mm cap, 2.5mm pin pitch, polarli. 100uF/25V VMOT bulk decoupling")
+  (tags "capacitor electrolytic radial polarized THT bulk")
+  (attr through_hole)
+  (fp_text reference "C**" (at 1.25 -4.5) (layer "F.SilkS")
+    (effects (font (size 0.8 0.8) (thickness 0.12))))
+  (fp_text value "100uF/25V" (at 1.25 4.5) (layer "F.Fab")
+    (effects (font (size 0.8 0.8) (thickness 0.12))))
+  (fp_text user "${REFERENCE}" (at 1.25 0) (layer "F.Fab")
+    (effects (font (size 0.6 0.6) (thickness 0.1))))
+
+  (fp_circle (center 1.25 0) (end 4.4 0) (layer "F.SilkS") (width 0.12) (fill none))
+  (fp_circle (center 1.25 0) (end 4.4 0) (layer "F.Fab") (width 0.1) (fill none))
+
+  (fp_text user "+" (at -1.5 0) (layer "F.SilkS") (effects (font (size 1.5 1.5) (thickness 0.25) bold)))
+
+  (fp_arc (start -2.7 1.5) (mid -3.5 0) (end -2.7 -1.5) (layer "F.SilkS") (width 0.2))
+
+  (fp_line (start -2 -3.7) (end 4.5 -3.7) (layer "F.CrtYd") (width 0.05))
+  (fp_line (start 4.5 -3.7) (end 4.5 3.7) (layer "F.CrtYd") (width 0.05))
+  (fp_line (start 4.5 3.7) (end -2 3.7) (layer "F.CrtYd") (width 0.05))
+  (fp_line (start -2 3.7) (end -2 -3.7) (layer "F.CrtYd") (width 0.05))
+
+  (pad "1" thru_hole rect   (at 0 0) (size 1.7 1.7) (drill 0.9) (layers *.Cu *.Mask))
+  (pad "2" thru_hole circle (at 2.5 0) (size 1.7 1.7) (drill 0.9) (layers *.Cu *.Mask))
+)

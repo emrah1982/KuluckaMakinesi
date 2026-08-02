@@ -1,0 +1,33 @@
+(footprint "R_Axial_P5.08mm" (version 20221018) (generator pcbnew)
+  (layer "F.Cu")
+  (descr "Direnc THT axial 1/4W body, 5.08mm pad pitch, body ~3.5x1.6mm. Pin sayisi 2, drill 0.8mm")
+  (tags "resistor THT axial 0207 1/4W pull-up")
+  (attr through_hole)
+  (fp_text reference "R**" (at 2.54 -2.2) (layer "F.SilkS")
+    (effects (font (size 0.8 0.8) (thickness 0.12))))
+  (fp_text value "4K7" (at 2.54 2.2) (layer "F.Fab")
+    (effects (font (size 0.8 0.8) (thickness 0.12))))
+  (fp_text user "${REFERENCE}" (at 2.54 0) (layer "F.Fab")
+    (effects (font (size 0.6 0.6) (thickness 0.1))))
+
+  (fp_line (start 0.75 -0.85) (end 4.33 -0.85) (layer "F.SilkS") (width 0.12))
+  (fp_line (start 4.33 -0.85) (end 4.33 0.85) (layer "F.SilkS") (width 0.12))
+  (fp_line (start 4.33 0.85) (end 0.75 0.85) (layer "F.SilkS") (width 0.12))
+  (fp_line (start 0.75 0.85) (end 0.75 -0.85) (layer "F.SilkS") (width 0.12))
+
+  (fp_line (start 0.75 -0.85) (end 4.33 -0.85) (layer "F.Fab") (width 0.1))
+  (fp_line (start 4.33 -0.85) (end 4.33 0.85) (layer "F.Fab") (width 0.1))
+  (fp_line (start 4.33 0.85) (end 0.75 0.85) (layer "F.Fab") (width 0.1))
+  (fp_line (start 0.75 0.85) (end 0.75 -0.85) (layer "F.Fab") (width 0.1))
+
+  (fp_line (start -0.3 0) (end 0.75 0) (layer "F.SilkS") (width 0.12))
+  (fp_line (start 4.33 0) (end 5.38 0) (layer "F.SilkS") (width 0.12))
+
+  (fp_line (start -0.5 -1.2) (end 5.58 -1.2) (layer "F.CrtYd") (width 0.05))
+  (fp_line (start 5.58 -1.2) (end 5.58 1.2) (layer "F.CrtYd") (width 0.05))
+  (fp_line (start 5.58 1.2) (end -0.5 1.2) (layer "F.CrtYd") (width 0.05))
+  (fp_line (start -0.5 1.2) (end -0.5 -1.2) (layer "F.CrtYd") (width 0.05))
+
+  (pad "1" thru_hole rect   (at 0 0) (size 1.6 1.6) (drill 0.8) (layers *.Cu *.Mask))
+  (pad "2" thru_hole circle (at 5.08 0) (size 1.6 1.6) (drill 0.8) (layers *.Cu *.Mask))
+)
