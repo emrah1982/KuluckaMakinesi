@@ -30,8 +30,13 @@
 #define DEVICE_NAME_MAX_LEN 31      // NVS'de saklanacak kullanici tanimli isim maks uzunlugu
 
 // -------------------- DEBUG AYARLARI --------------------
-// Flash tasarrufu icin DEBUG_ENABLED 0 yapin (Serial.print devre disi)
-#define DEBUG_ENABLED       0
+// 1 = Seri monitorde periyodik [STATUS] satiri ve tum tani ciktisi gorunur
+// 0 = DEBUG_* makrolari bosa cikar (flash tasarrufu, sahaya cikarken kullanin)
+//
+// NOT: Bu bayrak 0 iken periyodik sicaklik/nem verisi seri porta HIC basilmaz;
+// sadece modullerin kendi Serial.print satirlari (MUX/RELAY/SENSOR/EGG-IR
+// baslangic mesajlari ve hatalar) gorunur.
+#define DEBUG_ENABLED       1
 
 #if DEBUG_ENABLED
     #define DEBUG_PRINT(x)    Serial.print(x)
