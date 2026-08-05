@@ -153,6 +153,10 @@ DisplayManager::DisplayManager()
     , _sysCtrlOpen(false)
     , _sysCtrlDrawn(false)
     , _sysCtrlOpenedMs(0)
+#if RELAY_TEST_ENABLED
+    , _relayTestDrawn(false)
+    , _relayTestSig(0xFF)
+#endif
     , _profileListOpen(false)
     , _pendingProfileIdx(0)
     , _prevTemp(-999)
@@ -232,6 +236,36 @@ TouchAction DisplayManager::handleTouch(const DisplayData &data) {
     unsigned long now = millis();
     if (now - _lastTouch < TOUCH_DEBOUNCE_MS) return TOUCH_NONE;
     _lastTouch = now;
+
+#if RELAY_TEST_ENABLED
+    // --- ROLE TESTI ACIKSA: EN ONCE, her seyden once ---
+    // Modal dokunmasi TUM sekme isleyicilerinden once gelmelidir. Bu blok
+    // once TAB_CTRL isleyicisinin ardinda duruyordu ve calismiyordu:
+    // "TESTI BITIR" (y 208..248) ile Kontrol sekmesindeki
+    // "Profil Sec / Profili Duzenle" satiri (y 218..246) cakisiyor,
+    // dokunus once oraya gidip profil listesini aciyordu.
+    // Koordinatlar drawRelayTest ile BIREBIR ayni.
+    if (data.relayTestActive) {
+        const int mx = 6, my = 24, mw = SCR_W - 12;
+        const int bx = mx + 4, bw2 = (mw - 12) / 2;
+        const int rx2 = bx + bw2 + 4;
+        const int bh = 38;
+        const int r1y = my + 42;
+        const int r2y = r1y + bh + 4;
+        const int fy  = r2y + bh + 4;
+
+        if (touchInRect(tx, ty, bx,  r1y, bw2, bh)) return TOUCH_RTEST_R0;
+        if (touchInRect(tx, ty, rx2, r1y, bw2, bh)) return TOUCH_RTEST_R1;
+        if (touchInRect(tx, ty, bx,  r2y, bw2, bh)) return TOUCH_RTEST_R2;
+        if (touchInRect(tx, ty, rx2, r2y, bw2, bh)) return TOUCH_RTEST_R3;
+        if (touchInRect(tx, ty, bx,  fy,  mw - 8, bh)) return TOUCH_RTEST_FAN;
+        if (touchInRect(tx, ty, bx,  fy + bh + 20, mw - 8, 40)) {
+            _forceRedraw = true;
+            return TOUCH_RTEST_EXIT;
+        }
+        return TOUCH_NONE;   // modal disi dokunuslar yutulur
+    }
+#endif
 
     // --- ALARM MODAL aciksa ---
     // Tum alarmlarda 3 buton: SUSTUR (10dk), ERTELE (1sa), KAPAT
@@ -491,31 +525,6 @@ TouchAction DisplayManager::handleTouch(const DisplayData &data) {
         }
     }
 
-#if RELAY_TEST_ENABLED
-    // --- Role testi acikken yalnizca test butonlari dinlenir ---
-    // Koordinatlar drawRelayTest ile BIREBIR ayni olmali.
-    if (data.relayTestActive) {
-        const int mx = 6, my = 24, mw = SCR_W - 12;
-        const int bx = mx + 4, bw2 = (mw - 12) / 2;
-        const int rx2 = bx + bw2 + 4;
-        const int bh = 38;
-        const int r1y = my + 42;
-        const int r2y = r1y + bh + 4;
-        const int fy  = r2y + bh + 4;
-
-        if (touchInRect(tx, ty, bx,  r1y, bw2, bh)) return TOUCH_RTEST_R0;
-        if (touchInRect(tx, ty, rx2, r1y, bw2, bh)) return TOUCH_RTEST_R1;
-        if (touchInRect(tx, ty, bx,  r2y, bw2, bh)) return TOUCH_RTEST_R2;
-        if (touchInRect(tx, ty, rx2, r2y, bw2, bh)) return TOUCH_RTEST_R3;
-        if (touchInRect(tx, ty, bx,  fy,  mw - 8, bh)) return TOUCH_RTEST_FAN;
-        if (touchInRect(tx, ty, bx,  fy + bh + 20, mw - 8, 40)) {
-            _forceRedraw = true;
-            return TOUCH_RTEST_EXIT;
-        }
-        return TOUCH_NONE;   // modal disi dokunuslar yutulur
-    }
-#endif
-
     // --- Sistem kontrol modali acikken baska hicbir sey dinlenmez ---
     // Modal bir ONAY penceresidir; arka plandaki kontrollerin de tetiklenmesi
     // kullanicinin onaylamadigi bir eylemi calistirabilirdi.
@@ -707,6 +716,18 @@ TouchAction DisplayManager::update(const DisplayData &data) {
         _forceRedraw  = true;
         s_prevRunaway = data.thermalRunaway;
     }
+
+#if RELAY_TEST_ENABLED
+    // Role testine girildiginde/cikildiginda tam yenile: modal zemini bir kez
+    // cizilecek, cikista da arka plan temizlenecek.
+    static bool s_prevRTest = false;
+    if (data.relayTestActive != s_prevRTest) {
+        _forceRedraw    = true;
+        _relayTestDrawn = false;
+        _relayTestSig   = 0xFF;   // butonlar kesin cizilsin
+        s_prevRTest     = data.relayTestActive;
+    }
+#endif
 
     // Sistem kontrol modali zaman asimi: kazara acildiysa panoyu suresiz
     // kapatmasin, kendiliginden kapansin (hicbir eylem tetiklemeden).
@@ -1782,19 +1803,37 @@ void DisplayManager::drawRelayTest(const DisplayData &data) {
     const int rx2 = bx + bw2 + 4;
     const int bh = 38;
 
-    _tft.fillRoundRect(mx, my, mw, mh, 8, COL_CARD);
-    _tft.drawRoundRect(mx, my, mw, mh, 8, COL_ORANGE);
+    // TITREME ONLEME: zemin ve basliklar DEGISMEZ, yalnizca bir kez cizilir.
+    // Eskiden her DISPLAY_UPDATE_MS'de (500 ms) tum modal fillRoundRect ile
+    // siliniyordu; ekran surekli yanip sonuyordu.
+    bool bgNeeded = (_bgDraw || !_relayTestDrawn);
+    if (bgNeeded) {
+        _tft.fillRoundRect(mx, my, mw, mh, 8, COL_CARD);
+        _tft.drawRoundRect(mx, my, mw, mh, 8, COL_ORANGE);
+
+        _tft.setTextSize(1);
+        _tft.setTextDatum(MC_DATUM);
+        _tft.setTextPadding(0);
+        _tft.setTextFont(2);
+        _tft.setTextColor(COL_ORANGE, COL_CARD);
+        _tft.drawString("ROLE TESTI", SCR_W / 2, my + 14);
+        _tft.setTextFont(1);
+        _tft.setTextColor(COL_DIM, COL_CARD);
+        _tft.drawString("PCF8574 - MUX CH7", SCR_W / 2, my + 30);
+        _relayTestDrawn = true;
+    }
+
+    // Butonlar yalnizca DURUM DEGISINCE yeniden cizilir. Her karede
+    // cizilseydi kucuk olcekli bir titreme kalmaya devam ederdi.
+    uint8_t sig = (data.relayTestOn[0] ? 1 : 0) | (data.relayTestOn[1] ? 2 : 0)
+                | (data.relayTestOn[2] ? 4 : 0) | (data.relayTestOn[3] ? 8 : 0)
+                | (data.relayTestFan > 0 ? 16 : 0) | (data.relayOK ? 32 : 0);
+    if (!bgNeeded && sig == _relayTestSig) return;
+    _relayTestSig = sig;
 
     _tft.setTextSize(1);
     _tft.setTextDatum(MC_DATUM);
     _tft.setTextPadding(0);
-
-    _tft.setTextFont(2);
-    _tft.setTextColor(COL_ORANGE, COL_CARD);
-    _tft.drawString("ROLE TESTI", SCR_W / 2, my + 14);
-    _tft.setTextFont(1);
-    _tft.setTextColor(COL_DIM, COL_CARD);
-    _tft.drawString("PCF8574 - MUX CH7", SCR_W / 2, my + 30);
 
     // Dort role - 2x2
     const int r1y = my + 42;

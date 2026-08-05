@@ -292,6 +292,8 @@ private:
 #if RELAY_TEST_ENABLED
     // Role test modali (GECICI). PCF8574 rolelerinin tek tek denenmesi.
     void drawRelayTest(const DisplayData &data);
+    bool    _relayTestDrawn;   // zemin bir kez cizildi mi (titreme onleme)
+    uint8_t _relayTestSig;     // butonlarin son cizilen durumu
 #endif
 
     void drawGauge(int cx, int cy, int r, float value, float minVal,
