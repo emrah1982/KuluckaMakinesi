@@ -174,6 +174,7 @@ private:
     // NVS'deki kulucka durumunu siler (guc kesintisi kurtarmasi kaybolur).
     // Tek dokunusla 18 gunluk kulucka bitirilememeli.
     bool          _sysCtrlOpen;
+    bool          _sysCtrlDrawn;      // bir kez cizildi mi (titreme onleme)
     unsigned long _sysCtrlOpenedMs;   // otomatik kapanma icin
 
     // Profil sekmesindeki faz listesinin son kaydirma siniri.

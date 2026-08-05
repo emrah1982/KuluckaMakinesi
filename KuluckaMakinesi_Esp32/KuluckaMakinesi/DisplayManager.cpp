@@ -81,12 +81,19 @@ static const int PROF_SCROLL_UP_MAXY = 66;    // baslik karti 2..64
 static const int PROF_SCROLL_DN_MINY = 266;   // alt serit 266..286
 
 // ---- Sistem kontrol onay modali ----
-static const int SYSM_X = 10, SYSM_Y = 40;
-static const int SYSM_W = SCR_W - 20;              // 220
-static const int SYSM_H = 200;                     // 40..240
-static const int SYSM_BTN_H = 40;
-static const int SYSM_ACT_Y = SYSM_Y + 60;         // eylem butonlari 100..140
-static const int SYSM_CANCEL_Y = SYSM_Y + 136;     // vazgec 176..216
+// Yazilar buyutuldugu icin modal da buyutuldu. Yatay tasma sinirlari
+// (Font1 ~6 px/karakter, Font2 ~8 px, Font4 ~14 px, ic genislik 212 px):
+//   baslik  "SISTEM KONTROL" Font2 = 112 px  OK
+//   durum   "Calisiyor"      Font4 = 126 px  OK
+//   uyari   en uzun satir    Font2 = 176 px  OK   (26 karakteri asmamali)
+//   buton   "GUVENLIK SIFIRLA" Font2 = 128 px, tek buton genisligi 212  OK
+//   buton   "DURAKLAT"       Font2 =  64 px, ikili buton genisligi 104  OK
+static const int SYSM_X = 10, SYSM_Y = 30;
+static const int SYSM_W = SCR_W - 20;              // 220 (ic genislik 212)
+static const int SYSM_H = 240;                     // 30..270 (sayfa siniri 290)
+static const int SYSM_BTN_H = 44;                  // dokunma hedefi buyutuldu
+static const int SYSM_ACT_Y = SYSM_Y + 92;         // eylem butonlari 122..166
+static const int SYSM_CANCEL_Y = SYSM_Y + 182;     // vazgec 212..256
 static const int SYSM_BTN_W2 = (SYSM_W - 12) / 2;  // yan yana iki buton: 104
 // Kazara acilan modal panoyu suresiz kapatmasin
 static const unsigned long SYSM_TIMEOUT_MS = 15000;
@@ -144,6 +151,7 @@ DisplayManager::DisplayManager()
     , _scrollOffset(0)
     , _profMaxScroll(0)
     , _sysCtrlOpen(false)
+    , _sysCtrlDrawn(false)
     , _sysCtrlOpenedMs(0)
     , _profileListOpen(false)
     , _pendingProfileIdx(0)
@@ -503,6 +511,7 @@ TouchAction DisplayManager::handleTouch(const DisplayData &data) {
         const int x3 = 2 + 2 * (bw + gap);      // DURUM karti
         if (touchInRect(tx, ty, x3, INF_Y, bw, INF_H)) {
             _sysCtrlOpen     = true;
+            _sysCtrlDrawn    = false;   // bir kez cizilsin
             _sysCtrlOpenedMs = millis();
             _forceRedraw     = true;
             return TOUCH_NONE;
@@ -670,10 +679,17 @@ TouchAction DisplayManager::update(const DisplayData &data) {
     }
 
     // Sistem kontrol modali en ustte: onay bekleyen bir pencere arka plandaki
-    // olcumlerle karistirilmamali
+    // olcumlerle karistirilmamali.
+    // TITREME ONLEME: modal icerigi acikken degismez, bu yuzden yalnizca BIR
+    // KEZ cizilir. Eskiden her DISPLAY_UPDATE_MS'de (500 ms) tum zemin
+    // fillRoundRect ile yeniden dolduruluyordu; gozle gorulur sekilde
+    // yanip sonuyordu.
     if (_sysCtrlOpen) {
-        if (_bgDraw) draw(data);   // arka plani bir kez tazele
-        drawSysControl(data);
+        if (_bgDraw || !_sysCtrlDrawn) {
+            if (_bgDraw) draw(data);   // arka plani bir kez tazele
+            drawSysControl(data);
+            _sysCtrlDrawn = true;
+        }
         return action;
     }
 
@@ -1631,21 +1647,24 @@ void DisplayManager::drawSysControl(const DisplayData &data) {
     _tft.setTextDatum(MC_DATUM);
     _tft.setTextPadding(0);
 
-    // Baslik
+    // Baslik (Font 2 - 14 karakter, Font 4'te 196 px olur ve 212'ye cok
+    // yaklasirdi; basliktan cok DURUM buyuk olmali)
     _tft.setTextFont(2);
     _tft.setTextColor(COL_CYAN, COL_CARD);
-    _tft.drawString("SISTEM KONTROL", SCR_W / 2, SYSM_Y + 14);
+    _tft.drawString("SISTEM KONTROL", SCR_W / 2, SYSM_Y + 16);
 
-    // Mevcut durum + gun
+    // Mevcut durum - modaldeki EN ONEMLI bilgi, Font 4
     int si = constrain(data.systemState, 0, 6);
+    _tft.setTextFont(4);
     _tft.setTextColor(ST_CLR[si], COL_CARD);
-    _tft.drawString(ST_SHORT[si], SCR_W / 2, SYSM_Y + 34);
+    _tft.drawString(ST_SHORT[si], SCR_W / 2, SYSM_Y + 50);
 
-    _tft.setTextFont(1);
+    // Gun bilgisi - Font 2 (eskiden Font 1 idi)
+    _tft.setTextFont(2);
     _tft.setTextColor(COL_DIM, COL_CARD);
     char dbuf[24];
     snprintf(dbuf, sizeof(dbuf), "Gun %d/%d", data.currentDay, data.totalDays);
-    _tft.drawString(dbuf, SCR_W / 2, SYSM_Y + 50);
+    _tft.drawString(dbuf, SCR_W / 2, SYSM_Y + 76);
 
     // Eylem butonlari
     SysAction acts[2];
@@ -1661,20 +1680,21 @@ void DisplayManager::drawSysControl(const DisplayData &data) {
                    acts[1].label, acts[1].color, COL_TEXT);
     }
 
-    // Uyari metni - DURDUR'un ne yaptigi acikca yazilir
-    _tft.setTextFont(1);
+    // Uyari metni - Font 2. Satirlar 26 karakteri ASMAMALI, yoksa 212 px'lik
+    // ic genisligi tasar. Metinler bu sinira gore kisaltildi.
+    _tft.setTextFont(2);
     _tft.setTextDatum(MC_DATUM);
     bool hasStop = (acts[0].act == TOUCH_STOP) || (n == 2 && acts[1].act == TOUCH_STOP);
     if (hasStop) {
         _tft.setTextColor(COL_RED, COL_CARD);
-        _tft.drawString("DURDUR: kulucka kaydi SILINIR,",
-                        SCR_W / 2, SYSM_ACT_Y + SYSM_BTN_H + 10);
-        _tft.drawString("guc kesintisi kurtarmasi kaybolur.",
-                        SCR_W / 2, SYSM_ACT_Y + SYSM_BTN_H + 22);
+        _tft.drawString("DURDUR kaydi SILER,",        // 19 karakter
+                        SCR_W / 2, SYSM_ACT_Y + SYSM_BTN_H + 14);
+        _tft.drawString("kurtarma kaybolur.",         // 18 karakter
+                        SCR_W / 2, SYSM_ACT_Y + SYSM_BTN_H + 32);
     } else {
         _tft.setTextColor(COL_DIM, COL_CARD);
-        _tft.drawString("Isitici ve nemlendirici devreye girer.",
-                        SCR_W / 2, SYSM_ACT_Y + SYSM_BTN_H + 16);
+        _tft.drawString("Isitici devreye girer.",     // 22 karakter
+                        SCR_W / 2, SYSM_ACT_Y + SYSM_BTN_H + 22);
     }
 
     // Vazgec - en genis ve en kolay hedef (yanlislikla acildiysa cikis)
@@ -2928,28 +2948,48 @@ void DisplayManager::drawSettings(const DisplayData &data) {
         _tft.drawRoundRect(cardMargin, cy, cardW, card2H, 6, 0x3186);
     }
 
-    _tft.setTextFont(1);
-    _tft.setTextDatum(ML_DATUM);
-    _tft.setTextColor(COL_CYAN, COL_CARD);
-    _tft.drawString("SENSOR", cardPadX + cardMargin + 4, cy + card2H / 2);
-
+    // SENSOR karti: UC sensor tek satirda. CO2 daha once bu kartta hic
+    // gosterilmiyordu; kullanici sensorun takili olup olmadigini yalnizca
+    // Olcum sekmesindeki kadranin gri olmasindan anlayabiliyordu.
+    //
+    // Yer acmak icin "SENSOR" basligi kaldirildi: kartin cyan kenar cubugu
+    // zaten bolumu isaretliyor. Kart YUKSEKLIGI degistirilmedi - Ayar
+    // sekmesindeki kartlar toplam 276 px ve sayfa siniri 290; ikinci satir
+    // eklemek tasmaya yol acardi ve dokunma koordinatlarini kaydirirdi.
+    //
+    // Yatay yerlesim (taban 12, Font 2 ~8 px/karakter, kart sagi 236):
+    //   SHT40  16..56 | durum  60.. 92
+    //   SHT30 100..140 | durum 144..176
+    //   CO2   184..208 | durum 212..236
     _tft.setTextFont(2);
+    _tft.setTextDatum(ML_DATUM);
+    const int sRowY = cy + card2H / 2;
+    const int sBase = cardPadX + cardMargin;
 
-    // Sensor 1 (orta) — Durum sekmesiyle AYNI etiket ve AYNI durum dili.
-    // Yuva adlari eskiden SENSOR_NAME ("SHT40+SHT30") ve SENSOR_BUS_NAME
-    // ("I2C") idi; ikisi de hangi yuvanin hangi sensor oldugunu soylemiyordu.
     _tft.setTextColor(COL_DIM, COL_CARD);
-    _tft.drawString(SENSOR1_NAME, cardPadX + cardMargin + 56, cy + card2H / 2);
+    _tft.drawString(SENSOR1_NAME, sBase + 4, sRowY);
     _tft.setTextColor(sensorStateColor(data.sensor1OK, data.sensor1Present), COL_CARD);
-    _tft.drawString(sensorStateText(data.sensor1OK, data.sensor1Present),
-                    cardPadX + cardMargin + 102, cy + card2H / 2);
+    _tft.setTextPadding(32);
+    _tft.drawString(sensorStateText(data.sensor1OK, data.sensor1Present), sBase + 48, sRowY);
 
-    // Sensor 2 (sag)
     _tft.setTextColor(COL_DIM, COL_CARD);
-    _tft.drawString(SENSOR2_NAME, cardPadX + cardMargin + 150, cy + card2H / 2);
+    _tft.setTextPadding(0);
+    _tft.drawString(SENSOR2_NAME, sBase + 88, sRowY);
     _tft.setTextColor(sensorStateColor(data.sensor2OK, data.sensor2Present), COL_CARD);
-    _tft.drawString(sensorStateText(data.sensor2OK, data.sensor2Present),
-                    cardPadX + cardMargin + 196, cy + card2H / 2);
+    _tft.setTextPadding(32);
+    _tft.drawString(sensorStateText(data.sensor2OK, data.sensor2Present), sBase + 132, sRowY);
+
+    // CO2 (SCD30, MUX CH3). Yalnizca OK/YOK: CO2Sensor "takili ama arizali"
+    // ayrimini tutmuyor, bu yuzden uc durumlu dil yerine ikili kullaniyoruz.
+    // "HATA" (32 px) yazilsaydi 212+32=244 ile kart sagini (236) tasardi.
+    _tft.setTextColor(COL_DIM, COL_CARD);
+    _tft.setTextPadding(0);
+    _tft.drawString("CO2", sBase + 172, sRowY);
+    _tft.setTextColor(data.co2Valid ? COL_GREEN : COL_DIM, COL_CARD);
+    _tft.setTextPadding(24);
+    _tft.drawString(data.co2Valid ? "OK" : "YOK", sBase + 200, sRowY);
+
+    _tft.setTextPadding(0);
     _tft.setTextDatum(TL_DATUM);
 
     // ========== KART 3: SISTEM ==========
