@@ -314,6 +314,23 @@ void IncubationService::update() {
             stopCleaning();
             return;
         }
+        // ---- MANUEL MOD ASIRI ISINMA KORUMASI ----
+        // Bu dalda _safety.check() CAGRILMIYOR: PID ve otomatik kontrol
+        // bilerek devre disi. Ama asiri isinma korumasi devre disi
+        // BIRAKILAMAZ. Kullanici isiticiyi %100'de birakip giderse tek
+        // koruma CLEANING_TIMEOUT_MS idi - 30 dakika. Bir kulucka dolusu
+        // yumurta icin fazlasiyla uzun.
+        {
+            float mt = _sensorMgr.getTemperature();
+            if (_sensorMgr.isAnyValid() && mt >= SAFETY_TEMP_MAX && _cleaningHeater > 0) {
+                _cleaningHeater = 0;
+                _alarm.triggerAlarm(ALARM_TEMP_HIGH,
+                    "Manuel mod: " + String(mt, 1) + "C - isitici kapatildi");
+                Serial.printf("[CLEAN] GUVENLIK: %.1fC >= %.1fC, isitici kapatildi\n",
+                              mt, SAFETY_TEMP_MAX);
+            }
+        }
+
         // Manuel ciksilari uygula (her dongude — canli slider degisimi icin)
         _heater.setPWM(_cleaningHeater);
         _fan.setPWM(_cleaningFan);
@@ -926,6 +943,30 @@ void IncubationService::updateDisplay() {
             // mDNS ile yumurta.local kesfini baslat (asenkron, hemen doner)
             _eggTempSvc.requestDiscovery();
             DEBUG_PRINTLN("[EggTemp] TFT: mDNS kesfi tetiklendi");
+            break;
+        }
+        // ---- Manuel cikis kontrolu (Kontrol sekmesi) ----
+        // Otomatik kontrol ile elle kontrol ayni anda calisamaz: PID her
+        // dongude isiticiya komut verirken kullanicinin actigi isitici
+        // aninda ezilirdi. Bu yuzden once manuel moda geciyoruz.
+        case TOUCH_MANUAL_HEATER: {
+            if (!isCleaning() && !startCleaning()) {
+                DEBUG_PRINTLN("[MANUEL] Moda gecilemedi, isitici degistirilmedi");
+                break;
+            }
+            uint8_t h = (_cleaningHeater > 0) ? 0 : 255;
+            setCleaningOutputs(h, _cleaningFan, _cleaningHum, _cleaningTurner);
+            Serial.printf("[MANUEL] Isitici %s\n", h > 0 ? "ACIK" : "KAPALI");
+            break;
+        }
+        case TOUCH_MANUAL_HUM: {
+            if (!isCleaning() && !startCleaning()) {
+                DEBUG_PRINTLN("[MANUEL] Moda gecilemedi, nemlendirici degistirilmedi");
+                break;
+            }
+            bool nh = !_cleaningHum;
+            setCleaningOutputs(_cleaningHeater, _cleaningFan, nh, _cleaningTurner);
+            Serial.printf("[MANUEL] Nemlendirici %s\n", nh ? "ACIK" : "KAPALI");
             break;
         }
         case TOUCH_CLEANING_TOGGLE: {

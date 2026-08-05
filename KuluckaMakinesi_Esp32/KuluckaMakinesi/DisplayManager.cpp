@@ -436,6 +436,24 @@ TouchAction DisplayManager::handleTouch(const DisplayData &data) {
         const int py = 122;
         const int ny = py + pidH + 4;
         const int cy = ny + nemH + 4;  // 218
+
+        // Manuel cikis toggle'lari (NEM ESIKLERI kartinin yerine gecti).
+        // Koordinatlar drawControl'daki cizimle BIREBIR ayni olmali; aksi
+        // halde kullanici bastigi butondan baskasini tetikler.
+        {
+            const int mBtnY = ny + 17;
+            const int mBtnH = 22;
+            const int mGap  = 4;
+            const int mBtnW = (cardW - mGap) / 2;
+            if (touchInRect(tx, ty, cardMargin, mBtnY, mBtnW, mBtnH)) {
+                _forceRedraw = true;
+                return TOUCH_MANUAL_HEATER;
+            }
+            if (touchInRect(tx, ty, cardMargin + mBtnW + mGap, mBtnY, mBtnW, mBtnH)) {
+                _forceRedraw = true;
+                return TOUCH_MANUAL_HUM;
+            }
+        }
         const int bottomH = 28;
         const int halfW = (cardW - 4) / 2;
         int px = cardMargin + halfW + 4;  // sag yari baslangici
@@ -1836,30 +1854,52 @@ void DisplayManager::drawControl(const DisplayData &data) {
     char kdStr[10]; snprintf(kdStr, sizeof(kdStr), "%.1f", data.kd);
     _tft.drawString(kdStr, cardPadX + cardMargin + 165, py + 24);
 
-    // ========== NEM ESIKLERI ==========
+    // ========== MANUEL CIKIS KONTROLU ==========
+    // Buradaki eski "NEM ESIKLERI" karti kaldirildi: salt gosterimdi (dokunma
+    // isleyicisi yoktu) ve ayni bilgi Durum sekmesinde nem kartinda
+    // ("%55 - %65") ve Olcum sekmesinde yesil bant + HEDEFTE satiri olarak
+    // zaten iki kez gosteriliyordu. Acilan 44 px manuel kontrole verildi.
     int ny = py + pidH + 4;
     const int nemH = 44;
     if (_bgDraw) {
         _tft.fillRoundRect(cardMargin, ny, cardW, nemH, 6, COL_CARD);
-        _tft.drawRoundRect(cardMargin, ny, cardW, nemH, 6, 0x3186);
+        _tft.drawRoundRect(cardMargin, ny, cardW, nemH, 6,
+                           data.cleaningActive ? COL_ORANGE : 0x3186);
     }
     _tft.setTextFont(1);
     _tft.setTextDatum(TL_DATUM);
-    _tft.setTextColor(COL_CYAN, COL_CARD);
-    _tft.drawString("% NEM ESIKLERI", cardPadX + cardMargin, ny + 6);
+    _tft.setTextColor(data.cleaningActive ? COL_ORANGE : COL_CYAN, COL_CARD);
+    _tft.setTextPadding(150);
+    _tft.drawString(data.cleaningActive ? "* MANUEL MOD AKTIF" : "* MANUEL KONTROL",
+                    cardPadX + cardMargin, ny + 5);
+    _tft.setTextPadding(0);
 
-    _tft.setTextFont(2);
-    _tft.setTextColor(COL_DIM, COL_CARD);
-    _tft.drawString("Min:", cardPadX + cardMargin, ny + 24);
-    _tft.setTextColor(COL_BLUE, COL_CARD);
-    char minH[8]; snprintf(minH, sizeof(minH), "%%%d", (int)data.targetHumLow);
-    _tft.drawString(minH, cardPadX + cardMargin + 35, ny + 24);
-    
-    _tft.setTextColor(COL_DIM, COL_CARD);
-    _tft.drawString("Max:", cardPadX + cardMargin + 90, ny + 24);
-    _tft.setTextColor(COL_ORANGE, COL_CARD);
-    char maxH[8]; snprintf(maxH, sizeof(maxH), "%%%d", (int)data.targetHumHigh);
-    _tft.drawString(maxH, cardPadX + cardMargin + 130, ny + 24);
+    // Iki toggle: ISITICI | NEMLENDIRICI
+    // Manuel mod aktif degilse dokunmak once o moda gecirir; PID ile elle
+    // kontrolun ayni anda isiticiya komut vermesi kabul edilemez.
+    {
+        const int mBtnY = ny + 17;
+        const int mBtnH = 22;
+        const int mGap  = 4;
+        const int mBtnW = (cardW - mGap) / 2;
+        const int mlx   = cardMargin;
+        const int mrx   = cardMargin + mBtnW + mGap;
+
+        bool htOn = data.cleaningActive && (data.heaterPWM > 0);
+        bool hmOn = data.cleaningActive && data.humidifierOn;
+
+        // Etiketler buton genisligine (114 px) gore secildi. Font 2'de
+        // "ISITICI: KAPALI" 15 karakter = ~120 px ile tasiyordu. Aktif durum
+        // "*" onekiyle isaretleniyor - bu ekranin baska yerlerinde de
+        // kullanilan bir dil ("* PID", "* Sogutma"). Renk destekleyici,
+        // tek basina tasiyici degil.
+        drawButton(mlx, mBtnY, mBtnW, mBtnH,
+                   htOn ? "* ISITICI" : "ISITICI",
+                   htOn ? COL_RED : 0x3186, COL_TEXT);
+        drawButton(mrx, mBtnY, mBtnW, mBtnH,
+                   hmOn ? "* NEMLEND." : "NEMLEND.",
+                   hmOn ? COL_BLUE : 0x3186, COL_TEXT);
+    }
 
     // ========== ALT SATIR: PROFIL SEC + PROFIL DUZENLE ==========
     int cy = ny + nemH + 4;

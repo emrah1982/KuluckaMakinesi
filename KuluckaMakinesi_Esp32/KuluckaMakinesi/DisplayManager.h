@@ -47,7 +47,12 @@ enum TouchAction {
     TOUCH_ALARM_ACK,            // Aktif alarmi sustur (kullanici onaylama, 10 dk)
     TOUCH_ALARM_SNOOZE,         // Aktif alarmi ertele (candling: 1 saat)
     TOUCH_ALARM_DISMISS,        // Aktif alarmi kapat (bugun icinde tekrar gosterilmez)
-    TOUCH_CLEANING_TOGGLE       // Temizlik modu baslat/durdur
+    TOUCH_CLEANING_TOGGLE,      // Temizlik modu baslat/durdur
+    // Kontrol sekmesi manuel cikis kontrolu. Manuel mod (SYS_CLEANING)
+    // aktif degilse once o moda gecilir: PID ile elle kontrolun ayni anda
+    // isiticiye komut vermesi kabul edilemez.
+    TOUCH_MANUAL_HEATER,        // Isitici ac/kapa (manuel)
+    TOUCH_MANUAL_HUM            // Nemlendirici ac/kapa (manuel)
 };
 
 // ==================== GOSTERGE VERISI ====================
