@@ -1846,39 +1846,60 @@ void DisplayManager::drawProfile(const DisplayData &data) {
         int cy = startY + idx * (phH + gap);
         if (cy + phH > PAGE_H) break;
 
+        // ---- Evrenin ZAMAN DURUMU ----
+        // Eskiden yalnizca "aktif" evre ayrisiyordu; TAMAMLANAN ile HENUZ
+        // GELINMEYEN evreler birbirinin ayni gorunuyordu. Kulucka kac gundur
+        // suruyor, hangi evreler geride kaldi - bunlar bir bakista okunmaliydi.
+        bool started  = (data.currentDay > 0);
         bool isActive = (i == data.currentPhaseIndex);
+        bool isDone   = (started && !isActive && data.currentDay > ph.endDay);
+        // ucuncu durum (bekleyen) = !isActive && !isDone
+
+        // Her durumun KENDI CERCEVESI var:
+        //   aktif      : yesil cerceve + koyu yesil zemin
+        //   tamamlandi : gri cerceve  + soluk icerik (geride kaldi)
+        //   bekliyor   : mor kenar cubugu, cerceve yok (one cikmasin)
         uint16_t cardBg = isActive ? 0x0A2A : COL_CARD;
+        uint16_t accent = isActive ? COL_GREEN : (isDone ? COL_DIM : COL_PURPLE);
+        // Tamamlanan evrede metinler soluklastirilir
+        uint16_t bodyCol  = isDone ? COL_DIM : COL_TEXT;
+        uint16_t labelCol = COL_DIM;
+        uint16_t dayCol   = isDone ? COL_DIM : COL_ORANGE;
 
         if (_bgDraw) {
             _tft.fillRoundRect(cardMargin, cy, cardW, phH, 5, cardBg);
-            // Sol kenar renk gostergesi
-            uint16_t accent = isActive ? COL_GREEN : COL_PURPLE;
             _tft.fillRoundRect(cardMargin, cy + 2, 5, phH - 4, 2, accent);
             if (isActive) {
                 _tft.drawRoundRect(cardMargin, cy, cardW, phH, 5, COL_GREEN);
+            } else if (isDone) {
+                _tft.drawRoundRect(cardMargin, cy, cardW, phH, 5, COL_DIM);
             }
         }
 
         // Evre adi (sol ust) - Font 2
         _tft.setTextFont(2);
         _tft.setTextDatum(TL_DATUM);
-        _tft.setTextColor(isActive ? COL_GREEN : COL_TEXT, cardBg);
+        _tft.setTextColor(isActive ? COL_GREEN : bodyCol, cardBg);
         _tft.setTextPadding(100);
         _tft.drawString(ph.phaseName, cardPadX + cardMargin + 8, cy + phRow1Y);
         _tft.setTextPadding(0);
 
-        // Gun araligi (sag ust) - Font 2
+        // Gun araligi (sag ust) - Font 2. Tamamlanan evrede "OK" ekiyle
+        // gosterilir: cerceve rengi disinda ikinci bir isaret olur.
         _tft.setTextDatum(TR_DATUM);
-        _tft.setTextColor(COL_ORANGE, cardBg);
-        char dayRange[16];
-        snprintf(dayRange, sizeof(dayRange), "Gun %d-%d", ph.startDay, ph.endDay);
+        _tft.setTextColor(dayCol, cardBg);
+        char dayRange[20];
+        snprintf(dayRange, sizeof(dayRange), "%sGun %d-%d",
+                 isDone ? "OK " : "", ph.startDay, ph.endDay);
+        _tft.setTextPadding(88);
         _tft.drawString(dayRange, SCR_W - cardMargin - cardPadX, cy + phRow1Y);
+        _tft.setTextPadding(0);
         _tft.setTextDatum(TL_DATUM);
 
         // Sicaklik (sol alt) - Font 2
-        _tft.setTextColor(COL_DIM, cardBg);
+        _tft.setTextColor(labelCol, cardBg);
         _tft.drawString("Sic:", cardPadX + cardMargin + 8, cy + phRow2Y);
-        _tft.setTextColor(COL_TEXT, cardBg);
+        _tft.setTextColor(bodyCol, cardBg);
         char tempStr[20];
         if (ph.tempEnd > 0.0f && ph.tempEnd != ph.temperature) {
             snprintf(tempStr, sizeof(tempStr), "%.1f>%.1f", ph.temperature, ph.tempEnd);
@@ -1892,19 +1913,20 @@ void DisplayManager::drawProfile(const DisplayData &data) {
         _tft.setTextColor(COL_DIM, cardBg);
         char humStr[20];
         snprintf(humStr, sizeof(humStr), "Nem: %%%d-%%%d", (int)ph.humidityLow, (int)ph.humidityHigh);
-        _tft.setTextColor(COL_CYAN, cardBg);
+        _tft.setTextColor(isDone ? COL_DIM : COL_CYAN, cardBg);
         _tft.drawString(humStr, SCR_W - cardMargin - cardPadX, cy + phRow2Y);
         _tft.setTextDatum(TL_DATUM);
 
         // Cevirme (sol alt) - Font 2
-        _tft.setTextColor(ph.turningEnabled ? COL_GREEN : COL_RED, cardBg);
+        _tft.setTextColor(isDone ? COL_DIM
+                                 : (ph.turningEnabled ? COL_GREEN : COL_RED), cardBg);
         _tft.drawString(ph.turningEnabled ? "Cevirme: ACIK" : "Cevirme: KAPALI",
                          cardPadX + cardMargin + 8, cy + phRow3Y);
 
         // Cooling/Sprey indikatoru (sag alt) - 4 fazli kompakt modda
         if (totalCards >= 4 && (ph.coolingEnabled || ph.sprayingEnabled)) {
             _tft.setTextDatum(TR_DATUM);
-            _tft.setTextColor(COL_PURPLE, cardBg);
+            _tft.setTextColor(isDone ? COL_DIM : COL_PURPLE, cardBg);
             const char* coolSym = ph.sprayingEnabled ? "* Sogut+Sprey" : "* Sogutma";
             _tft.drawString(coolSym, SCR_W - cardMargin - cardPadX, cy + phRow3Y);
             _tft.setTextDatum(TL_DATUM);
