@@ -22,6 +22,7 @@ IncubationService::IncubationService()
     , _relayTestActive(false)
     , _relayTestFan(0)
     , _relayTestStartMs(0)
+    , _relayTestHeaterMs(0)
 #endif
     , _historyIndex(0)
     , _historyCount(0)
@@ -337,6 +338,25 @@ void IncubationService::update() {
             Serial.printf("[RTEST] GUVENLIK: %.1fC >= %.1fC, isitici rolesi kapatildi\n",
                           rt, SAFETY_TEMP_MAX);
         }
+
+        // ---- KILIT 3: isitici icin ayri ve kisa sure siniri ----
+        // Bir rolenin calistigini dogrulamak icin tik sesi yeterli;
+        // isiticiyi dakikalarca enerjili tutmanin test degeri yok.
+        if (_relayTestOn[RELAY_BIT_HEATER] && _relayTestHeaterMs != 0 &&
+            (now - _relayTestHeaterMs) >= RELAY_TEST_HEATER_MAX_MS) {
+            _relayTestOn[RELAY_BIT_HEATER] = false;
+            _relayTestHeaterMs = 0;
+            Serial.printf("[RTEST] Isitici sure siniri (%lu sn) - kapatildi\n",
+                          (unsigned long)(RELAY_TEST_HEATER_MAX_MS / 1000UL));
+        }
+
+#if RELAY_TEST_FAN_INTERLOCK
+        // Isitici acikken fan kapatilmis olabilir (kullanici fan butonuna
+        // basmis olabilir); her dongude yeniden zorla.
+        if (_relayTestOn[RELAY_BIT_HEATER] && _relayTestFan == 0) {
+            _relayTestFan = FAN_MAX_PWM;
+        }
+#endif
 
         // Roleleri dogrudan yaz (HeaterDriver/TurnerDriver devrede degil)
         RelayBoard& rb = RelayBoard::instance();
@@ -920,6 +940,7 @@ void IncubationService::updateDisplay() {
     dd.relayTestActive = _relayTestActive;
     for (uint8_t i = 0; i < 4; i++) dd.relayTestOn[i] = _relayTestOn[i];
     dd.relayTestFan    = _relayTestFan;
+    dd.relayTestHeaterLeftSec = getTestHeaterLeftSec();
 #endif
     dd.eggDiscoveryStatus  = (uint8_t)_eggTempSvc.getDiscoveryStatus();
 
@@ -1435,9 +1456,10 @@ bool IncubationService::startRelayTest() {
     // Guvenli baslangic: her sey kapali. Kullanici hangi rolenin
     // tikladigini duyarak dogrulayacak, onceki durum karistirmamalı.
     memset(_relayTestOn, 0, sizeof(_relayTestOn));
-    _relayTestFan     = 0;
-    _relayTestActive  = true;
-    _relayTestStartMs = millis();
+    _relayTestFan      = 0;
+    _relayTestActive   = true;
+    _relayTestStartMs  = millis();
+    _relayTestHeaterMs = 0;
 
     // Otomatik surucularin ele karismamasi icin hepsini durdur
     _heater.stop();
@@ -1457,7 +1479,8 @@ void IncubationService::stopRelayTest() {
     if (!_relayTestActive) return;
     _relayTestActive = false;
     memset(_relayTestOn, 0, sizeof(_relayTestOn));
-    _relayTestFan = 0;
+    _relayTestFan      = 0;
+    _relayTestHeaterMs = 0;
 
     // Cikislari kapat ve surucu ic durumlarini gercekle esitle:
     // test sirasinda roleler dogrudan yazildi, HeaterDriver bundan habersiz.
@@ -1472,11 +1495,49 @@ void IncubationService::stopRelayTest() {
 
 void IncubationService::toggleTestRelay(uint8_t bit) {
     if (!_relayTestActive || bit > 3) return;
-    _relayTestOn[bit] = !_relayTestOn[bit];
+
     static const char* names[4] = {"Isitici", "Nemlendirici",
                                    "Cevirme guc", "Cevirme yon"};
+    bool turningOn = !_relayTestOn[bit];
+
+    // ---- KILIT 1: H-koprusu kisa devre korumasi ----
+    // P2 (motor guc) ACIKKEN P3 (yon) degistirmek, H-koprusunde iki kolun
+    // ayni anda iletime girmesine (shoot-through) yol acabilir. Gercek
+    // sistemde yon daima guc kesikken degistirilir. Once gucu keselim.
+    if (bit == RELAY_BIT_TURNER_DIR && _relayTestOn[RELAY_BIT_TURNER_POWER]) {
+        _relayTestOn[RELAY_BIT_TURNER_POWER] = false;
+        RelayBoard::instance().setTurnerPower(false);
+        delay(50);   // kontaklarin acilmasi icin kisa bekleme
+        Serial.println("[RTEST] KILIT: yon degisimi icin motor gucu kesildi");
+    }
+
+    // ---- KILIT 2: isitici acilirken fan zorunlu ----
+    // Hava sirkulasyonu olmayan rezistans bolgesel asiri isinma yapar.
+#if RELAY_TEST_FAN_INTERLOCK
+    if (bit == RELAY_BIT_HEATER && turningOn && _relayTestFan == 0) {
+        _relayTestFan = FAN_MAX_PWM;
+        Serial.println("[RTEST] KILIT: isitici icin fan otomatik acildi");
+    }
+#endif
+
+    _relayTestOn[bit] = turningOn;
+
+    // Isitici icin ayri sayac baslat (kisa sinir)
+    if (bit == RELAY_BIT_HEATER) {
+        _relayTestHeaterMs = turningOn ? millis() : 0;
+    }
+
     Serial.printf("[RTEST] P%u (%s) -> %s\n",
                   bit, names[bit], _relayTestOn[bit] ? "ACIK" : "KAPALI");
+}
+
+uint16_t IncubationService::getTestHeaterLeftSec() const {
+    if (!_relayTestActive || !_relayTestOn[RELAY_BIT_HEATER] || _relayTestHeaterMs == 0) {
+        return 0;
+    }
+    unsigned long el = millis() - _relayTestHeaterMs;
+    if (el >= RELAY_TEST_HEATER_MAX_MS) return 0;
+    return (uint16_t)((RELAY_TEST_HEATER_MAX_MS - el) / 1000UL);
 }
 
 void IncubationService::toggleTestFan() {

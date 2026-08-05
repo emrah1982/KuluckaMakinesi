@@ -156,6 +156,7 @@ DisplayManager::DisplayManager()
 #if RELAY_TEST_ENABLED
     , _relayTestDrawn(false)
     , _relayTestSig(0xFF)
+    , _relayTestHeaterLeft(0xFFFF)
 #endif
     , _profileListOpen(false)
     , _pendingProfileIdx(0)
@@ -474,29 +475,17 @@ TouchAction DisplayManager::handleTouch(const DisplayData &data) {
         // Manuel cikis toggle'lari (NEM ESIKLERI kartinin yerine gecti).
         // Koordinatlar drawControl'daki cizimle BIREBIR ayni olmali; aksi
         // halde kullanici bastigi butondan baskasini tetikler.
+#if RELAY_TEST_ENABLED
+        // Tek giris: role/cikis testi (cizimle ayni koordinatlar)
         {
             const int mBtnY = ny + 17;
             const int mBtnH = 22;
-            const int mGap  = 4;
-            const int mBtnW = (cardW - 2 * mGap) / 3;
-            const int m0 = cardMargin;
-            const int m1 = m0 + mBtnW + mGap;
-            const int m2 = m1 + mBtnW + mGap;
-            if (touchInRect(tx, ty, m0, mBtnY, mBtnW, mBtnH)) {
-                _forceRedraw = true;
-                return TOUCH_MANUAL_HEATER;
-            }
-            if (touchInRect(tx, ty, m1, mBtnY, mBtnW, mBtnH)) {
-                _forceRedraw = true;
-                return TOUCH_MANUAL_HUM;
-            }
-#if RELAY_TEST_ENABLED
-            if (touchInRect(tx, ty, m2, mBtnY, mBtnW, mBtnH)) {
+            if (touchInRect(tx, ty, cardMargin, mBtnY, cardW, mBtnH)) {
                 _forceRedraw = true;
                 return TOUCH_RTEST_ENTER;
             }
-#endif
         }
+#endif
         const int bottomH = 28;
         const int halfW = (cardW - 4) / 2;
         int px = cardMargin + halfW + 4;  // sag yari baslangici
@@ -1825,11 +1814,15 @@ void DisplayManager::drawRelayTest(const DisplayData &data) {
 
     // Butonlar yalnizca DURUM DEGISINCE yeniden cizilir. Her karede
     // cizilseydi kucuk olcekli bir titreme kalmaya devam ederdi.
+    // Isitici geri sayimi saniyede bir degistigi icin imzaya dahil edildi;
+    // aksi halde sayac ekranda donuk kalirdi.
     uint8_t sig = (data.relayTestOn[0] ? 1 : 0) | (data.relayTestOn[1] ? 2 : 0)
                 | (data.relayTestOn[2] ? 4 : 0) | (data.relayTestOn[3] ? 8 : 0)
                 | (data.relayTestFan > 0 ? 16 : 0) | (data.relayOK ? 32 : 0);
-    if (!bgNeeded && sig == _relayTestSig) return;
-    _relayTestSig = sig;
+    if (!bgNeeded && sig == _relayTestSig &&
+        data.relayTestHeaterLeftSec == _relayTestHeaterLeft) return;
+    _relayTestSig        = sig;
+    _relayTestHeaterLeft = data.relayTestHeaterLeftSec;
 
     _tft.setTextSize(1);
     _tft.setTextDatum(MC_DATUM);
@@ -1854,14 +1847,24 @@ void DisplayManager::drawRelayTest(const DisplayData &data) {
     drawButton(bx, fy, mw - 8, bh, fbuf,
                data.relayTestFan > 0 ? COL_CYAN : 0x3186, COL_TEXT);
 
-    // Durum satiri: role yazmasi gercekten geciyor mu
+    // Durum satiri: role yazmasi gercekten geciyor mu + isitici geri sayimi.
+    // Isitici sessizce kapansaydi kullanici "role bozuk" sanardi; kalan
+    // sureyi gostermek bunun bilincli bir sinir oldugunu belli eder.
     _tft.setTextFont(1);
     _tft.setTextDatum(MC_DATUM);
-    _tft.setTextColor(data.relayOK ? COL_GREEN : COL_RED, COL_CARD);
-    _tft.setTextPadding(200);
-    _tft.drawString(data.relayOK ? "Role karti: OK"
-                                 : "Role karti: YAZILAMIYOR!",
-                    SCR_W / 2, fy + bh + 10);
+    _tft.setTextPadding(210);
+    if (data.relayTestHeaterLeftSec > 0) {
+        char hbuf[40];
+        snprintf(hbuf, sizeof(hbuf), "Isitici otomatik kapanma: %u sn",
+                 (unsigned)data.relayTestHeaterLeftSec);
+        _tft.setTextColor(COL_ORANGE, COL_CARD);
+        _tft.drawString(hbuf, SCR_W / 2, fy + bh + 10);
+    } else {
+        _tft.setTextColor(data.relayOK ? COL_GREEN : COL_RED, COL_CARD);
+        _tft.drawString(data.relayOK ? "Role karti: OK"
+                                     : "Role karti: YAZILAMIYOR!",
+                        SCR_W / 2, fy + bh + 10);
+    }
     _tft.setTextPadding(0);
 
     // Cikis
@@ -2028,26 +2031,24 @@ void DisplayManager::drawControl(const DisplayData &data) {
     {
         const int mBtnY = ny + 17;
         const int mBtnH = 22;
-        const int mGap  = 4;
-        // Uc buton: ISITICI | NEM | TEST. Genislik 73 px, Font 2'de en fazla
-        // ~8 karakter sigar; etiketler buna gore kisa tutuldu ve aktif durum
-        // "*" yerine RENK ile gosteriliyor (yildiz onek 73 px'e sigmiyordu).
-        const int mBtnW = (cardW - 2 * mGap) / 3;
-        const int m0 = cardMargin;
-        const int m1 = m0 + mBtnW + mGap;
-        const int m2 = m1 + mBtnW + mGap;
-
-        bool htOn = data.cleaningActive && (data.heaterPWM > 0);
-        bool hmOn = data.cleaningActive && data.humidifierOn;
-
-        drawButton(m0, mBtnY, mBtnW, mBtnH, "ISITICI",
-                   htOn ? COL_RED : 0x3186, COL_TEXT);
-        drawButton(m1, mBtnY, mBtnW, mBtnH, "NEM",
-                   hmOn ? COL_BLUE : 0x3186, COL_TEXT);
 #if RELAY_TEST_ENABLED
-        // GECICI: role testi girisi. RELAY_TEST_ENABLED 0 olunca bu buton
-        // kaybolur ve yerini bos birakir; digerleri ayni yerde kalir.
-        drawButton(m2, mBtnY, mBtnW, mBtnH, "TEST", COL_ORANGE, COL_TEXT);
+        // TEK GIRIS NOKTASI.
+        // Onceden burada ISITICI ve NEM toggle'lari da vardi; onlar temizlik
+        // modu uzerinden calisiyordu, role testi ise otomatik kontrolu
+        // tamamen askiya alan AYRI bir yol. Iki farkli manuel mekanizmayi
+        // yan yana koymak hangi durumda olundugunu belirsizlestiriyor ve
+        // kazara yanlis moda girme riski yaratiyordu. Role testi zaten
+        // isitici (P0) ve nemlendiriciyi (P1) de kapsiyor.
+        drawButton(cardMargin, mBtnY, cardW, mBtnH,
+                   "ROLE / CIKIS TESTI", COL_ORANGE, COL_TEXT);
+#else
+        // Test derlemeden cikarildiginda kart bos kalmasin
+        _tft.setTextFont(1);
+        _tft.setTextDatum(MC_DATUM);
+        _tft.setTextColor(COL_DIM, COL_CARD);
+        _tft.drawString("Manuel kontrol web arayuzunde",
+                        SCR_W / 2, mBtnY + mBtnH / 2);
+        _tft.setTextDatum(TL_DATUM);
 #endif
     }
 

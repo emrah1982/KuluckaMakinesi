@@ -156,6 +156,16 @@
 // devre disi oldugu icin bu sure kisa tutuldu.
 #define RELAY_TEST_TIMEOUT_MS   (10UL * 60UL * 1000UL)   // 10 dakika
 
+// ISITICI icin AYRI ve cok daha kisa sinir. Bir rolenin calistigini
+// dogrulamak icin tik sesini duymak yeterlidir; isiticiyi dakikalarca
+// enerjili tutmanin test degeri yok, riski var. Sure dolunca otomatik kapanir.
+#define RELAY_TEST_HEATER_MAX_MS (60UL * 1000UL)         // 60 saniye
+
+// Isitici acikken fan ZORUNLU. Hava sirkulasyonu olmadan calisan rezistans
+// bolgesel asiri isinma yapar ve elemani yakabilir; kulucka makinelerinde
+// bu standart bir kilittir. Test modunda da vazgecilmez.
+#define RELAY_TEST_FAN_INTERLOCK 1
+
 // -------------------- Isitici Kontrol Modu --------------------
 // 0 = PID + Time-Proportional (rolu HEATER_WINDOW_MS pencerede sik anahtarlar)
 // 1 = BANG-BANG (basit termostat: sicaklik dustugunde ON, ulasinca OFF)

@@ -145,6 +145,7 @@ struct DisplayData {
     bool     relayTestActive;
     bool     relayTestOn[4];   // P0..P3
     uint8_t  relayTestFan;     // fan PWM (role degil, IO18)
+    uint16_t relayTestHeaterLeftSec;  // isiticinin otomatik kapanmasina kalan sn
 #endif
     bool     eggSensorEnabled; // Servis aktif/pasif (kullanici toggle)
     uint8_t  eggDiscoveryStatus; // 0=NONE, 1=RUNNING, 2=OK, 3=FAILED
@@ -292,8 +293,9 @@ private:
 #if RELAY_TEST_ENABLED
     // Role test modali (GECICI). PCF8574 rolelerinin tek tek denenmesi.
     void drawRelayTest(const DisplayData &data);
-    bool    _relayTestDrawn;   // zemin bir kez cizildi mi (titreme onleme)
-    uint8_t _relayTestSig;     // butonlarin son cizilen durumu
+    bool     _relayTestDrawn;      // zemin bir kez cizildi mi (titreme onleme)
+    uint8_t  _relayTestSig;        // butonlarin son cizilen durumu
+    uint16_t _relayTestHeaterLeft; // son cizilen isitici geri sayimi
 #endif
 
     void drawGauge(int cx, int cy, int r, float value, float minVal,

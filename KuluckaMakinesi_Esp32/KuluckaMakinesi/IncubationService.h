@@ -147,6 +147,10 @@ public:
     void toggleTestFan();                   // fan PWM 0 <-> FAN_MAX_PWM
     bool    getTestRelay(uint8_t bit) const;
     uint8_t getTestFan() const { return _relayTestFan; }
+    // Isiticinin otomatik kapanmasina kalan sure (sn). Isitici kapaliysa 0.
+    // Kullanici sayacin isledigini gormeli; sessizce kapanmasi "role bozuk"
+    // izlenimi verirdi.
+    uint16_t getTestHeaterLeftSec() const;
 #endif
     bool isCleaning() const;
     void setCleaningOutputs(uint8_t heaterPWM, uint8_t fanPWM, bool humidifierOn, bool turnerOn);
@@ -319,6 +323,7 @@ private:
     bool          _relayTestOn[4];    // P0..P3
     uint8_t       _relayTestFan;      // fan PWM (rolede degil, IO18 PWM)
     unsigned long _relayTestStartMs;
+    unsigned long _relayTestHeaterMs; // isitici acildigi an (ayri kisa sinir)
 #endif
 
     // Yumurta IR kaynagi izleme (alarm zamanlamasi icin)
