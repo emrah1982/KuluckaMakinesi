@@ -201,8 +201,8 @@ const char PAGE_INDEX_HTML[] PROGMEM = R"rawliteral(
 </div>
 
 <div class="card row-between">
-    <div class="sns"><span class="s-lbl">)rawliteral" SENSOR_NAME R"rawliteral(</span><span class="s-v" id="sensor1">--</span></div>
-    <div class="sns"><span class="s-lbl">)rawliteral" SENSOR_BUS_NAME R"rawliteral(</span><span class="s-v" id="sensor2">--</span></div>
+    <div class="sns"><span class="s-lbl">)rawliteral" SENSOR1_NAME R"rawliteral(</span><span class="s-v" id="sensor1">--</span></div>
+    <div class="sns"><span class="s-lbl">)rawliteral" SENSOR2_NAME R"rawliteral(</span><span class="s-v" id="sensor2">--</span></div>
     <div class="sns"><span class="s-lbl">Çalışma Süresi</span><span class="s-v" id="uptime">--</span></div>
     <div class="sns"><span class="s-lbl">Başlangıç Tarihi</span><span class="s-v" id="start-date">--</span></div>
     <div class="sns"><span class="s-lbl">Çıkım Tarihi</span><span class="s-v" id="hatch-date">--</span></div>

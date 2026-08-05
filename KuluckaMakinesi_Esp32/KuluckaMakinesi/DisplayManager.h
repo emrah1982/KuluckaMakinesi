@@ -126,7 +126,9 @@ struct DisplayData {
     bool     candlingToday;          // Bugun kontrol gunu mu
     const char* candlingLabel;       // "1.Kontrol (%25)" vb. (bos string = yok)
     uint8_t  candlingLockdownDay;    // Lockdown gunu
-    String   startDate;              // Baslangi tarihi (DD/MM/YYYY)
+    // NOT: formatli "DD/MM/YYYY" String alani kaldirildi - hicbir cizim
+    // fonksiyonu okumuyordu ama her veri hazirliginda heap'te uretiliyordu.
+    // Tarih icin asagidaki sayisal alanlar kullanilir.
     uint8_t  startDay;               // Baslangi gunu (1-31)
     uint8_t  startMonth;             // Baslangi ayi (1-12)
     uint16_t startYear;              // Baslangi yili
@@ -237,6 +239,13 @@ private:
                    const char* label, const char* unit,
                    float bandLo = GAUGE_NONE, float bandHi = GAUGE_NONE,
                    GaugeDev devMode = DEV_NONE, uint8_t devDecimals = 1);
+    // Sensor durum gosterimi - TEK KAYNAK.
+    // Ayni uc durum eskiden Durum sekmesinde "OK/HATA/YOK", Ayar sekmesinde
+    // "OK/X/-" olarak yaziliyordu; ayni sey icin iki farkli dil kullanmak
+    // kullaniciyi yaniltiyordu. Iki ekran da artik bu ikiliyi cagirir.
+    static const char* sensorStateText(bool ok, bool present);
+    uint16_t           sensorStateColor(bool ok, bool present) const;
+
     bool touchInRect(uint16_t tx, uint16_t ty,
                      int rx, int ry, int rw, int rh);
     

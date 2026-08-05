@@ -760,6 +760,16 @@ void IncubationService::debugLog() {
 }
 
 void IncubationService::updateDisplay() {
+    // Veri hazirligi pahalidir (String tahsisleri + onlarca getter cagrisi).
+    // Ekran zaten DISPLAY_UPDATE_MS'de bir cizilirken bunu her loop'ta
+    // yapmanin anlami yok. Dokunmatik yanit hizi etkilenmez: debounce 250 ms.
+    static unsigned long s_lastBuildMs = 0;
+    unsigned long buildNow = millis();
+    if (s_lastBuildMs != 0 && (buildNow - s_lastBuildMs) < DISPLAY_DATA_INTERVAL_MS) {
+        return;
+    }
+    s_lastBuildMs = buildNow;
+
     int remainingDays = _phaseMgr.getRemainingDays();
     int phaseRemaining = _phaseMgr.getPhaseRemainingDays();
     const char* profileName = _phaseMgr.getCurrentProfile() ? _phaseMgr.getCurrentProfile()->name : "---";
@@ -843,10 +853,9 @@ void IncubationService::updateDisplay() {
     dd.candlingLockdownDay = _candlingSched.lockdownDay;
 
     // Baslangic tarihi: RTC'den al (her cycle'da NVS okumamak icin)
+    // TFT tarafi sayisal alanlari (startDay/Month/Year) kullanir; formatli
+    // String alani okunmuyordu, kaldirildi.
     DateTime startDt = _rtc.getStartDate();
-    char startBuf[11];
-    snprintf(startBuf, sizeof(startBuf), "%02d/%02d/%04d", startDt.day(), startDt.month(), startDt.year());
-    dd.startDate = String(startBuf);
     dd.startDay = startDt.day();
     dd.startMonth = startDt.month();
     dd.startYear = startDt.year();

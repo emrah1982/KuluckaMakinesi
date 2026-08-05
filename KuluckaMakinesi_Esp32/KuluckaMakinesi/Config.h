@@ -92,8 +92,13 @@
 // Kanal 1: SHT40  (Birincil) — Kutuphane: Sensirion_I2C_SHT4x (SensirionI2CSht4x.h)
 // Kanal 2: SHT30  (Ikincil)  — Kutuphane: Wire ile direkt I2C
 // Fuzyon: iki sensorun ortalamasi alinir; fark toleransi asarsa uyari verilir.
-#define SENSOR_NAME       "SHT40+SHT30"   // DisplayManager ve diger modüller bu ismi kullanır
+#define SENSOR_NAME       "SHT40+SHT30"   // Sistemin genel sensor tanimi (baslik/log)
 #define SENSOR_BUS_NAME   "I2C"
+// Sensor yuvalarinin TEKIL adlari. Ekranda iki yuva ayri ayri gosterildiginde
+// hangisinin hangi sensor oldugu belli olmali; eskiden yuva 1 "SHT40+SHT30",
+// yuva 2 "I2C" olarak etiketleniyordu ve ikisi de sensoru tanimlamiyordu.
+#define SENSOR1_NAME      "SHT40"         // Birincil (MUX CH1)
+#define SENSOR2_NAME      "SHT30"         // Ikincil  (MUX CH2)
 
 // -------- SHT40 (Birincil, MUX CH1) --------
 // Kutuphane: #include <SensirionI2CSht4x.h>
@@ -210,6 +215,14 @@
 
 // -------------------- Ekran Guncelleme --------------------
 #define DISPLAY_UPDATE_MS   500     // ms - ekran yenileme araligi
+
+// Ekran VERISI hazirlama araligi (cizimden ayri).
+// updateDisplay() DisplayData'yi bastan kurar ve icinde String tahsisleri
+// vardir. loop() delay'siz calistigi icin bu, saniyede binlerce kez
+// yapiliyordu; ekran ise 500 ms'de bir yenileniyor. Bosuna heap churn,
+// uzun calismada (18-21 gunluk kulucka) fragmentasyon riski demekti.
+// 50 ms dokunmatik yoklamasi icin fazlasiyla yeterli: TOUCH_DEBOUNCE_MS 250.
+#define DISPLAY_DATA_INTERVAL_MS  50
 
 // -------------------- Yumurta Cevirme — Donanim Tipi Secimi --------------------
 // 0 = ROLE/DC motor (PCF8574 P2=Guc, P3=Yon, mevcut donanim)

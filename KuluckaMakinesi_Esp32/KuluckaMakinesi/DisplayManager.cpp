@@ -660,6 +660,27 @@ void DisplayManager::drawDashboard(const DisplayData &data) {
 
 // ==================== SAYFA: GRAFIK (GAUGE TARZI - FLICKER-FREE) ====================
 
+// ---------------------------------------------------------------------
+//  Sensor durum gosterimi - iki ekranin da kullandigi TEK kaynak
+//
+//  Uc durum ayridir ve karistirilmamalidir:
+//    OK   : takili, okuyor
+//    HATA : takili ama cevap vermiyor -> GERCEK ARIZA (kirmizi)
+//    YOK  : donanim hic takili degil -> normal (gri)
+//  Takili olmayana alarm rengi vermek gercek arizayi siradanlastirir.
+// ---------------------------------------------------------------------
+const char* DisplayManager::sensorStateText(bool ok, bool present) {
+    if (ok)      return "OK";
+    if (present) return "HATA";
+    return "YOK";
+}
+
+uint16_t DisplayManager::sensorStateColor(bool ok, bool present) const {
+    if (ok)      return COL_GREEN;
+    if (present) return COL_RED;
+    return COL_DIM;
+}
+
 void DisplayManager::drawGauge(int cx, int cy, int r, float value, float minVal,
                                 float maxVal, float target, uint16_t color,
                                 const char* label, const char* unit,
@@ -1285,22 +1306,15 @@ void DisplayManager::drawSensors(const DisplayData &data) {
 
     int cx1 = 2 + sw / 2;
     _tft.setTextColor(COL_DIM, COL_CARD);
-    _tft.drawString(SENSOR_NAME, cx1, SNS_Y + 2);
-    // Uc durum ayrimi: OK (calisiyor) / HATA (takili ama cevap vermiyor) /
-    // YOK (donanim hic takili degil). Takili olmayan bir sensore surekli
-    // kirmizi HATA yazmak gercek arizalari da siradanlastirir.
-    _tft.setTextColor(data.sensor1OK ? COL_GREEN
-                                     : (data.sensor1Present ? COL_RED : COL_DIM), COL_CARD);
-    _tft.drawString(data.sensor1OK ? "OK"
-                                   : (data.sensor1Present ? "HATA" : "YOK"), cx1, SNS_Y + 13);
+    _tft.drawString(SENSOR1_NAME, cx1, SNS_Y + 2);
+    _tft.setTextColor(sensorStateColor(data.sensor1OK, data.sensor1Present), COL_CARD);
+    _tft.drawString(sensorStateText(data.sensor1OK, data.sensor1Present), cx1, SNS_Y + 13);
 
     int cx2 = 2 + sw + sw / 2;
     _tft.setTextColor(COL_DIM, COL_CARD);
-    _tft.drawString(SENSOR_BUS_NAME, cx2, SNS_Y + 2);
-    _tft.setTextColor(data.sensor2OK ? COL_GREEN
-                                     : (data.sensor2Present ? COL_RED : COL_DIM), COL_CARD);
-    _tft.drawString(data.sensor2OK ? "OK"
-                                   : (data.sensor2Present ? "HATA" : "YOK"), cx2, SNS_Y + 13);
+    _tft.drawString(SENSOR2_NAME, cx2, SNS_Y + 2);
+    _tft.setTextColor(sensorStateColor(data.sensor2OK, data.sensor2Present), COL_CARD);
+    _tft.drawString(sensorStateText(data.sensor2OK, data.sensor2Present), cx2, SNS_Y + 13);
 
     int cx3 = 2 + 2 * sw + sw / 2;
     _tft.setTextColor(COL_DIM, COL_CARD);
@@ -1324,16 +1338,33 @@ void DisplayManager::drawAlarm(const DisplayData &data) {
     _tft.setTextDatum(ML_DATUM);
     _tft.setTextPadding(SCR_W - 16);
     if (data.alarmActive && data.alarmMsg.length() > 0) {
-        _tft.setTextColor(COL_RED, COL_CARD);
+        // Susturulmus alarm HALA TEHLIKEDIR. Sessiz bir sistemde "alarm yok"
+        // ile "alarm var ama susturuldu" ayirt edilemezse kullanici tehlikeyi
+        // gecmis sanir. Bu yuzden kirmizi cerceve korunur, metin turuncuya
+        // doner ve sag ust kosede acik bir SESSIZ etiketi cikar.
+        _tft.setTextColor(data.alarmMuted ? COL_ORANGE : COL_RED, COL_CARD);
         String txt = data.alarmMsg;
-        if (txt.length() > 22) txt = txt.substring(0, 19) + "...";
+        // Susturuldugunda sag tarafta etikete yer acmak icin daha kisa kes
+        uint8_t maxLen = data.alarmMuted ? 15 : 22;
+        if (txt.length() > maxLen) txt = txt.substring(0, maxLen - 3) + "...";
+        _tft.setTextPadding(data.alarmMuted ? (SCR_W - 70) : (SCR_W - 16));
         _tft.drawString(txt, 8, ALM_Y + 12);
+        _tft.setTextPadding(0);
 
-        // Alt satir: dokunma ipucu
+        if (data.alarmMuted) {
+            _tft.setTextDatum(MR_DATUM);
+            _tft.setTextColor(COL_ORANGE, COL_CARD);
+            _tft.drawString("SESSIZ", SCR_W - 10, ALM_Y + 12);
+            _tft.setTextDatum(ML_DATUM);
+        }
+
+        // Alt satir: dokunma ipucu / susturma durumu
         _tft.setTextFont(1);
         _tft.setTextColor(COL_DIM, COL_CARD);
         _tft.setTextPadding(SCR_W - 16);
-        _tft.drawString("Dokun: SUSTUR", 8, ALM_Y + ALM_H - 10);
+        _tft.drawString(data.alarmMuted ? "Susturuldu - dokun: detay"
+                                        : "Dokun: SUSTUR",
+                        8, ALM_Y + ALM_H - 10);
         _tft.setTextFont(2);
     } else {
         _tft.setTextColor(COL_GREEN, COL_CARD);
@@ -2449,24 +2480,21 @@ void DisplayManager::drawSettings(const DisplayData &data) {
 
     _tft.setTextFont(2);
 
-    // Sensor 1 (orta)
+    // Sensor 1 (orta) — Durum sekmesiyle AYNI etiket ve AYNI durum dili.
+    // Yuva adlari eskiden SENSOR_NAME ("SHT40+SHT30") ve SENSOR_BUS_NAME
+    // ("I2C") idi; ikisi de hangi yuvanin hangi sensor oldugunu soylemiyordu.
     _tft.setTextColor(COL_DIM, COL_CARD);
-    _tft.drawString(SENSOR_NAME, cardPadX + cardMargin + 56, cy + card2H / 2);
-    // Takili olmayan sensor "-" ile gosterilir (kirmizi X degil): ariza degil
-    _tft.setTextColor(data.sensor1OK ? COL_GREEN
-                                     : (data.sensor1Present ? COL_RED : COL_DIM), COL_CARD);
-    _tft.drawString(data.sensor1OK ? "OK"
-                                   : (data.sensor1Present ? "X" : "-"),
-                    cardPadX + cardMargin + 106, cy + card2H / 2);
+    _tft.drawString(SENSOR1_NAME, cardPadX + cardMargin + 56, cy + card2H / 2);
+    _tft.setTextColor(sensorStateColor(data.sensor1OK, data.sensor1Present), COL_CARD);
+    _tft.drawString(sensorStateText(data.sensor1OK, data.sensor1Present),
+                    cardPadX + cardMargin + 102, cy + card2H / 2);
 
     // Sensor 2 (sag)
     _tft.setTextColor(COL_DIM, COL_CARD);
-    _tft.drawString(SENSOR_BUS_NAME, cardPadX + cardMargin + 140, cy + card2H / 2);
-    _tft.setTextColor(data.sensor2OK ? COL_GREEN
-                                     : (data.sensor2Present ? COL_RED : COL_DIM), COL_CARD);
-    _tft.drawString(data.sensor2OK ? "OK"
-                                   : (data.sensor2Present ? "X" : "-"),
-                    cardPadX + cardMargin + 188, cy + card2H / 2);
+    _tft.drawString(SENSOR2_NAME, cardPadX + cardMargin + 150, cy + card2H / 2);
+    _tft.setTextColor(sensorStateColor(data.sensor2OK, data.sensor2Present), COL_CARD);
+    _tft.drawString(sensorStateText(data.sensor2OK, data.sensor2Present),
+                    cardPadX + cardMargin + 196, cy + card2H / 2);
     _tft.setTextDatum(TL_DATUM);
 
     // ========== KART 3: SISTEM ==========
