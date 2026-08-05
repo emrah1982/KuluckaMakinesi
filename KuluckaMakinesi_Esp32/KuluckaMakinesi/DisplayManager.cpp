@@ -75,6 +75,11 @@ static const int ALM_Y = 226, ALM_H = 38;
 // kullanilmiyordu). CO2, yumurta IR kaynagi ve I/O sagligi burada.
 static const int STA_Y = 266, STA_H = 22;
 
+// Profil sekmesi kaydirma bolgeleri. Ekranda gorunen kontrollerle AYNI yerde
+// olmalari sart: yukari = baslik karti, asagi = alttaki "ASAGI" seridi.
+static const int PROF_SCROLL_UP_MAXY = 66;    // baslik karti 2..64
+static const int PROF_SCROLL_DN_MINY = 266;   // alt serit 266..286
+
 // Kontrol sayfasi buton konumlari
 static const int BTN_W  = 112;
 static const int BTN_H  = 44;
@@ -91,6 +96,7 @@ DisplayManager::DisplayManager()
     , _forceRedraw(true)
     , _bgDraw(true)
     , _scrollOffset(0)
+    , _profMaxScroll(0)
     , _profileListOpen(false)
     , _pendingProfileIdx(0)
     , _prevTemp(-999)
@@ -403,19 +409,26 @@ TouchAction DisplayManager::handleTouch(const DisplayData &data) {
     }
 
     // --- Profil sayfasi: scroll ---
+    // Dokunma bolgeleri artik EKRANDA GORUNEN kontrollerle ayni yerde:
+    //   yukari -> baslik karti (y 2..64), icinde "^ 1/2" gostergesi var
+    //   asagi  -> en alttaki "v ASAGI v" seridi (y 266..286)
+    // Eskiden bolgeler y 38..80 ve y>220 idi; hicbir gorsel karsiligi yoktu,
+    // kullanici kaydirmanin mumkun oldugunu bile goremiyordu.
     if (_tab == TAB_PROF) {
-        // Yukari scroll (ust alan, y < 80)
-        if (ty < 80 && ty >= 38) {
+        if (ty < PROF_SCROLL_UP_MAXY) {
             if (_scrollOffset > 0) {
                 _scrollOffset--;
                 _forceRedraw = true;
             }
             return TOUCH_NONE;
         }
-        // Asagi scroll (alt alan, y > 220)
-        if (ty > 220) {
-            _scrollOffset++;
-            _forceRedraw = true;
+        if (ty >= PROF_SCROLL_DN_MINY) {
+            // Sinir kontrolu: eskiden kosulsuz artiriliyordu. Cizim sirasinda
+            // kirpiliyordu ama bu, "sonu gectin" geri bildirimi vermiyordu.
+            if (_scrollOffset < _profMaxScroll) {
+                _scrollOffset++;
+                _forceRedraw = true;
+            }
             return TOUCH_NONE;
         }
     }
@@ -1903,15 +1916,38 @@ void DisplayManager::drawProfile(const DisplayData &data) {
     // Kart yuksekligi 52 px'e cikinca 4. kart 282'ye kadar uzuyor ve gosterge
     // onun uzerine biniyordu. Baslik satirinda "PROFIL" (x 10..58) ile
     // "Gun x/y" (x ~158..230) arasi bostur; gosterge oraya alindi.
+    // handleTouch sinir kontrolu icin son degeri paylas
+    _profMaxScroll = maxScroll;
+
     if (maxScroll > 0) {
+        // Baslikta sayfa gostergesi. Yukari cikilabiliyorsa "^" ile birlikte
+        // yazilir ve baslik kartinin tamami "yukari" dokunma alanidir.
         _tft.setTextFont(1);
         _tft.setTextDatum(MC_DATUM);
-        _tft.setTextColor(COL_DIM, COL_CARD);
-        _tft.setTextPadding(40);
-        char sc[12];
-        snprintf(sc, sizeof(sc), "%d/%d", _scrollOffset + 1, maxScroll + 1);
+        _tft.setTextColor(_scrollOffset > 0 ? COL_CYAN : COL_DIM, COL_CARD);
+        _tft.setTextPadding(46);
+        char sc[16];
+        snprintf(sc, sizeof(sc), "%s%d/%d",
+                 (_scrollOffset > 0) ? "^ " : "", _scrollOffset + 1, maxScroll + 1);
         _tft.drawString(sc, 108, 10);
         _tft.setTextPadding(0);
+
+        // Alt serit: asagi kaydirma. Gorunur olmasi sart - eskiden kaydirma
+        // tamamen gizli dokunma bolgeleriyle yapiliyordu ve kullanici
+        // "1/2" yazisini gorup nasil gecilecegini bilemiyordu.
+        const int by = PROF_SCROLL_DN_MINY;
+        const int bh = 20;
+        bool canDown = (_scrollOffset < maxScroll);
+        _tft.fillRoundRect(cardMargin, by, cardW, bh, 5,
+                           canDown ? 0x18E3 : COL_BG);
+        _tft.setTextDatum(MC_DATUM);
+        _tft.setTextFont(2);
+        _tft.setTextColor(canDown ? COL_CYAN : COL_DIM, canDown ? 0x18E3 : COL_BG);
+        _tft.setTextPadding(cardW - 8);
+        _tft.drawString(canDown ? "v  ASAGI  v" : "- liste sonu -",
+                        SCR_W / 2, by + bh / 2);
+        _tft.setTextPadding(0);
+
         _tft.setTextFont(2);
         _tft.setTextDatum(TL_DATUM);
     }

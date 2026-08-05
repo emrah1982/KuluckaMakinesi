@@ -168,6 +168,10 @@ private:
     unsigned long _lastTouch;
     DisplayTab _tab;
     bool _forceRedraw;
+    // Profil sekmesindeki faz listesinin son kaydirma siniri.
+    // drawProfile() hesaplar, handleTouch() sinir kontrolu icin okur; boylece
+    // "asagi" dokunusu listenin sonunda bosuna sayac artirmaz.
+    int  _profMaxScroll;
     bool _bgDraw;
     int8_t _scrollOffset;  // Scroll pozisyonu (sayfa bazli)
     bool _profileListOpen;  // Profil dropdown acik mi
