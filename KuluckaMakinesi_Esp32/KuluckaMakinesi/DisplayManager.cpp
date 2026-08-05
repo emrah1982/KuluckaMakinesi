@@ -1559,7 +1559,14 @@ void DisplayManager::drawOutputs(const DisplayData &data) {
 
 void DisplayManager::drawSensors(const DisplayData &data) {
     if (_bgDraw) _tft.fillRoundRect(2, SNS_Y, SCR_W - 4, SNS_H, 4, COL_CARD);
-    const int sw = (SCR_W - 4) / 3;
+
+    // DORT sutun: SHT40 | SHT30 | CO2 | UP
+    // CO2 eskiden bu satirda yoktu; yalnizca Olcum sekmesinde kadran ve
+    // Durum sekmesi alt seridinde deger olarak goruluyordu. Sensor durumunun
+    // toplu okundugu yer burasi oldugu icin CO2 de yanlarina alindi.
+    // Sutun genisligi 78 -> 59 px dustu; Font 1'de (~6 px/karakter) en uzun
+    // icerik olan uptime "2s15d30s" 48 px eder, sigar.
+    const int sw = (SCR_W - 4) / 4;
     _tft.setTextFont(1);
     _tft.setTextSize(1);
     _tft.setTextDatum(TC_DATUM);
@@ -1577,15 +1584,23 @@ void DisplayManager::drawSensors(const DisplayData &data) {
     _tft.setTextColor(sensorStateColor(data.sensor2OK, data.sensor2Present), COL_CARD);
     _tft.drawString(sensorStateText(data.sensor2OK, data.sensor2Present), cx2, SNS_Y + 13);
 
+    // CO2: ikili dil (OK/YOK). CO2Sensor "takili ama arizali" ayrimini
+    // tutmadigi icin diger iki sensordeki uc durumlu dil kullanilamiyor.
     int cx3 = 2 + 2 * sw + sw / 2;
     _tft.setTextColor(COL_DIM, COL_CARD);
-    _tft.drawString("UP", cx3, SNS_Y + 2);
+    _tft.drawString("CO2", cx3, SNS_Y + 2);
+    _tft.setTextColor(data.co2Valid ? COL_GREEN : COL_DIM, COL_CARD);
+    _tft.drawString(data.co2Valid ? "OK" : "YOK", cx3, SNS_Y + 13);
+
+    int cx4 = 2 + 3 * sw + sw / 2;
+    _tft.setTextColor(COL_DIM, COL_CARD);
+    _tft.drawString("UP", cx4, SNS_Y + 2);
     unsigned long s = data.uptimeSec;
     char ut[16];
     snprintf(ut, sizeof(ut), "%lus%lud%lus", s / 3600, (s % 3600) / 60, s % 60);
     _tft.setTextColor(COL_TEXT, COL_CARD);
     _tft.setTextPadding(sw);
-    _tft.drawString(ut, cx3, SNS_Y + 13);
+    _tft.drawString(ut, cx4, SNS_Y + 13);
     _tft.setTextPadding(0);
 }
 

@@ -62,6 +62,42 @@ gerekmez.
 > önemlidir: aksi halde "tüm çıkışlar kapalı" denen durumda L298N girişi
 > enable konumunda kalır ve fanın durması tek bir sinyale bağlı olurdu.
 
+### Röle Kartı Beslemesi
+
+Röle modülünde **iki ayrı devre** vardır ve ikisi farklı beslenir:
+
+| Devre | Uçlar | Ne yapar | Gerekli |
+|-------|-------|----------|---------|
+| **Mantık (giriş)** | `VCC` `GND` `IN1..IN4` | LED + optokuplör | ~5 mA |
+| **Bobin (güç)** | `JD-VCC` `GND` | Rölenin kendisi | **5V, röle başına ~70 mA** |
+
+Çoğu 4'lü modülde `JD-VCC | VCC | GND` şeklinde 3 pinli bir başlık ve
+üzerinde bir jumper bulunur. Jumper takılıyken bobinler `VCC` üzerinden
+beslenir; çıkarıldığında `JD-VCC`'ye **ayrı 5V** vermek gerekir.
+
+#### "LED yanıyor ama röle tıklamıyor"
+
+Bu belirti, giriş devresinin çalıştığını ama **bobin devresinin
+beslenmediğini** söyler. Sırayla kontrol edin:
+
+1. **`VCC` gerçekten 5V mu?** 3.3V ile beslenirse LED yanar (~2V yeter) ama
+   5V'luk röle bobini çekmez. En sık sebep budur.
+2. **`JD-VCC` jumper'ı takılı mı?** Değilse `JD-VCC`'ye ayrı 5V verin.
+3. **Harici 5V'un GND'si ortak mı?** Bobin devresinin dönüş yolu yoksa
+   optokuplör iletse bile röle çekmez. Harici beslemenin eksi ucu
+   ESP32/PCF8574 toprağına bağlanmalıdır.
+4. **Akım yetiyor mu?** 4 röle aynı anda ~280 mA çeker. ESP32 kartının
+   regülatöründen beslenirse yetmez, ayrı besleme gerekir.
+
+**Ölçüm:** `JD-VCC` ile `GND` arasında ~5V okumalısınız. 3.3V okuyorsanız
+sorun budur.
+
+> Röle kartına yazma işleminin gerçekten geçtiğini yazılım tarafından
+> doğrulamak için Kontrol sekmesindeki **ROLE / CIKIS TESTI**'ni kullanın.
+> Modaldeki `Role karti: OK` satırı I2C yazmasının başarılı olduğunu
+> gösterir — bu satır OK iken röle tıklamıyorsa sorun kesinlikle besleme
+> tarafındadır.
+
 ### Fan Bağlantısı (L298N)
 
 Fan röle üzerinden değil, L298N motor sürücü kartı üzerinden çalışır.
