@@ -80,6 +80,52 @@ static const int STA_Y = 266, STA_H = 22;
 static const int PROF_SCROLL_UP_MAXY = 66;    // baslik karti 2..64
 static const int PROF_SCROLL_DN_MINY = 266;   // alt serit 266..286
 
+// ---- Sistem kontrol onay modali ----
+static const int SYSM_X = 10, SYSM_Y = 40;
+static const int SYSM_W = SCR_W - 20;              // 220
+static const int SYSM_H = 200;                     // 40..240
+static const int SYSM_BTN_H = 40;
+static const int SYSM_ACT_Y = SYSM_Y + 60;         // eylem butonlari 100..140
+static const int SYSM_CANCEL_Y = SYSM_Y + 136;     // vazgec 176..216
+static const int SYSM_BTN_W2 = (SYSM_W - 12) / 2;  // yan yana iki buton: 104
+// Kazara acilan modal panoyu suresiz kapatmasin
+static const unsigned long SYSM_TIMEOUT_MS = 15000;
+
+// Sistem durumuna gore sunulan eylemler.
+// Cizim ve dokunma AYNI kaynagi kullanir; ikisi ayrisirsa kullanici
+// bastigi butondan baska bir eylemi tetikler - guvenlik acisindan kabul
+// edilemez.
+struct SysAction {
+    const char* label;
+    TouchAction act;
+    uint16_t    color;
+};
+
+static uint8_t sysActionsFor(int state, SysAction out[2]) {
+    switch (state) {
+        case 2:  // SYS_RUNNING
+            out[0] = {"DURAKLAT", TOUCH_PAUSE, COL_ORANGE};
+            out[1] = {"DURDUR",   TOUCH_STOP,  COL_RED};
+            return 2;
+        case 3:  // SYS_PAUSED
+            out[0] = {"DEVAM",  TOUCH_RESUME, COL_GREEN};
+            out[1] = {"DURDUR", TOUCH_STOP,   COL_RED};
+            return 2;
+        case 1:  // SYS_AUTOTUNING
+            out[0] = {"DURDUR", TOUCH_STOP, COL_RED};
+            return 1;
+        case 5:  // SYS_EMERGENCY
+            out[0] = {"GUVENLIK SIFIRLA", TOUCH_SAFETY_RESET, COL_CYAN};
+            return 1;
+        case 6:  // SYS_CLEANING
+            out[0] = {"TEMIZLIGI BITIR", TOUCH_STOP, COL_ORANGE};
+            return 1;
+        default: // SYS_INITIALIZING / SYS_COMPLETED
+            out[0] = {"BASLAT", TOUCH_START, COL_GREEN};
+            return 1;
+    }
+}
+
 // Kontrol sayfasi buton konumlari
 static const int BTN_W  = 112;
 static const int BTN_H  = 44;
@@ -97,6 +143,8 @@ DisplayManager::DisplayManager()
     , _bgDraw(true)
     , _scrollOffset(0)
     , _profMaxScroll(0)
+    , _sysCtrlOpen(false)
+    , _sysCtrlOpenedMs(0)
     , _profileListOpen(false)
     , _pendingProfileIdx(0)
     , _prevTemp(-999)
@@ -408,6 +456,59 @@ TouchAction DisplayManager::handleTouch(const DisplayData &data) {
         }
     }
 
+    // --- Sistem kontrol modali acikken baska hicbir sey dinlenmez ---
+    // Modal bir ONAY penceresidir; arka plandaki kontrollerin de tetiklenmesi
+    // kullanicinin onaylamadigi bir eylemi calistirabilirdi.
+    if (_sysCtrlOpen) {
+        SysAction acts[2];
+        uint8_t n = sysActionsFor(constrain(data.systemState, 0, 6), acts);
+
+        // Vazgec
+        if (touchInRect(tx, ty, SYSM_X + 4, SYSM_CANCEL_Y, SYSM_W - 8, SYSM_BTN_H)) {
+            _sysCtrlOpen = false;
+            _forceRedraw = true;
+            return TOUCH_NONE;
+        }
+        // Eylem butonlari - cizimle AYNI koordinatlar ve AYNI eylem kaynagi
+        if (n == 1) {
+            if (touchInRect(tx, ty, SYSM_X + 4, SYSM_ACT_Y, SYSM_W - 8, SYSM_BTN_H)) {
+                _sysCtrlOpen = false;
+                _forceRedraw = true;
+                return acts[0].act;
+            }
+        } else {
+            if (touchInRect(tx, ty, SYSM_X + 4, SYSM_ACT_Y, SYSM_BTN_W2, SYSM_BTN_H)) {
+                _sysCtrlOpen = false;
+                _forceRedraw = true;
+                return acts[0].act;
+            }
+            if (touchInRect(tx, ty, SYSM_X + 8 + SYSM_BTN_W2, SYSM_ACT_Y,
+                            SYSM_BTN_W2, SYSM_BTN_H)) {
+                _sysCtrlOpen = false;
+                _forceRedraw = true;
+                return acts[1].act;
+            }
+        }
+        // Modal disina dokunma -> kapat (guvenli taraf)
+        _sysCtrlOpen = false;
+        _forceRedraw = true;
+        return TOUCH_NONE;
+    }
+
+    // --- Durum sekmesi: DURUM kartina dokunma -> sistem kontrol modali ---
+    // Dogrudan eylem YOK. Kart yalnizca onay penceresini acar.
+    if (_tab == TAB_DASH) {
+        const int bw = 56;
+        const int gap = (SCR_W - 4 * bw - 4) / 3;
+        const int x3 = 2 + 2 * (bw + gap);      // DURUM karti
+        if (touchInRect(tx, ty, x3, INF_Y, bw, INF_H)) {
+            _sysCtrlOpen     = true;
+            _sysCtrlOpenedMs = millis();
+            _forceRedraw     = true;
+            return TOUCH_NONE;
+        }
+    }
+
     // --- Profil sayfasi: scroll ---
     // Dokunma bolgeleri artik EKRANDA GORUNEN kontrollerle ayni yerde:
     //   yukari -> baslik karti (y 2..64), icinde "^ 1/2" gostergesi var
@@ -546,6 +647,13 @@ TouchAction DisplayManager::update(const DisplayData &data) {
         s_prevRunaway = data.thermalRunaway;
     }
 
+    // Sistem kontrol modali zaman asimi: kazara acildiysa panoyu suresiz
+    // kapatmasin, kendiliginden kapansin (hicbir eylem tetiklemeden).
+    if (_sysCtrlOpen && (millis() - _sysCtrlOpenedMs) > SYSM_TIMEOUT_MS) {
+        _sysCtrlOpen = false;
+        _forceRedraw = true;
+    }
+
     // Dokunma her zaman kontrol et (ekran guncelleme beklemeden)
     TouchAction action = handleTouch(data);
 
@@ -559,6 +667,14 @@ TouchAction DisplayManager::update(const DisplayData &data) {
     if (_forceRedraw) {
         _tft.fillRect(0, 0, SCR_W, PAGE_H, COL_BG);
         _forceRedraw = false;
+    }
+
+    // Sistem kontrol modali en ustte: onay bekleyen bir pencere arka plandaki
+    // olcumlerle karistirilmamali
+    if (_sysCtrlOpen) {
+        if (_bgDraw) draw(data);   // arka plani bir kez tazele
+        drawSysControl(data);
+        return action;
     }
 
     // Modal acik degilse normal tab cizimi
@@ -1268,11 +1384,15 @@ void DisplayManager::drawInfoRow(const DisplayData &data) {
     _tft.drawString(d1, x2 + bw / 2, INF_Y + 35);
     _tft.setTextPadding(0);
 
-    // Durum
-    if (_bgDraw) _tft.fillRoundRect(x3, INF_Y, bw, INF_H, 4, COL_CARD);
+    // Durum - DOKUNULABILIR (sistem kontrol modalini acar).
+    // Cyan cerceve, dokunulabilir oldugunu belli eder; diger kartlarda yok.
+    if (_bgDraw) {
+        _tft.fillRoundRect(x3, INF_Y, bw, INF_H, 4, COL_CARD);
+        _tft.drawRoundRect(x3, INF_Y, bw, INF_H, 4, COL_CYAN);
+    }
     _tft.setTextFont(1);
-    _tft.setTextColor(COL_DIM, COL_CARD);
-    _tft.drawString("DURUM", x3 + bw / 2, INF_Y + 3);
+    _tft.setTextColor(COL_CYAN, COL_CARD);
+    _tft.drawString("DURUM >", x3 + bw / 2, INF_Y + 3);
     int si = constrain(data.systemState, 0, 6);
     _tft.setTextFont(2);
     _tft.setTextColor(COL_TEXT, COL_CARD);
@@ -1488,6 +1608,79 @@ void DisplayManager::drawRunawayBanner(const DisplayData &data) {
     _tft.setTextColor(COL_TEXT, bg);
     _tft.setTextPadding(0);
     _tft.drawString("!! ISITICI BESLEMESINI KES !!", SCR_W / 2, bh / 2);
+    _tft.setTextDatum(TL_DATUM);
+}
+
+// ---------------------------------------------------------------------
+//  Sistem kontrol onay modali
+//
+//  Neden onay: stop() NVS'deki kulucka durumunu siler, yani guc kesintisi
+//  kurtarmasi kaybolur ve gun sayaci sifirlanir. Kumeste/ahirda dokunmatik
+//  panele yanlislikla surtunmek 18 gunluk bir kulucka icin olumcul olurdu.
+//  Bu yuzden DURUM karti dogrudan eylem yapmaz, once bu modali acar.
+//
+//  Modal SYSM_TIMEOUT_MS sonunda kendiliginden kapanir: kazara acilan bir
+//  pencere panoyu suresiz kapatip olcumleri gizlemesin.
+// ---------------------------------------------------------------------
+void DisplayManager::drawSysControl(const DisplayData &data) {
+    // Zemin
+    _tft.fillRoundRect(SYSM_X, SYSM_Y, SYSM_W, SYSM_H, 8, COL_CARD);
+    _tft.drawRoundRect(SYSM_X, SYSM_Y, SYSM_W, SYSM_H, 8, COL_CYAN);
+
+    _tft.setTextSize(1);
+    _tft.setTextDatum(MC_DATUM);
+    _tft.setTextPadding(0);
+
+    // Baslik
+    _tft.setTextFont(2);
+    _tft.setTextColor(COL_CYAN, COL_CARD);
+    _tft.drawString("SISTEM KONTROL", SCR_W / 2, SYSM_Y + 14);
+
+    // Mevcut durum + gun
+    int si = constrain(data.systemState, 0, 6);
+    _tft.setTextColor(ST_CLR[si], COL_CARD);
+    _tft.drawString(ST_SHORT[si], SCR_W / 2, SYSM_Y + 34);
+
+    _tft.setTextFont(1);
+    _tft.setTextColor(COL_DIM, COL_CARD);
+    char dbuf[24];
+    snprintf(dbuf, sizeof(dbuf), "Gun %d/%d", data.currentDay, data.totalDays);
+    _tft.drawString(dbuf, SCR_W / 2, SYSM_Y + 50);
+
+    // Eylem butonlari
+    SysAction acts[2];
+    uint8_t n = sysActionsFor(si, acts);
+
+    if (n == 1) {
+        drawButton(SYSM_X + 4, SYSM_ACT_Y, SYSM_W - 8, SYSM_BTN_H,
+                   acts[0].label, acts[0].color, COL_TEXT);
+    } else {
+        drawButton(SYSM_X + 4, SYSM_ACT_Y, SYSM_BTN_W2, SYSM_BTN_H,
+                   acts[0].label, acts[0].color, COL_TEXT);
+        drawButton(SYSM_X + 8 + SYSM_BTN_W2, SYSM_ACT_Y, SYSM_BTN_W2, SYSM_BTN_H,
+                   acts[1].label, acts[1].color, COL_TEXT);
+    }
+
+    // Uyari metni - DURDUR'un ne yaptigi acikca yazilir
+    _tft.setTextFont(1);
+    _tft.setTextDatum(MC_DATUM);
+    bool hasStop = (acts[0].act == TOUCH_STOP) || (n == 2 && acts[1].act == TOUCH_STOP);
+    if (hasStop) {
+        _tft.setTextColor(COL_RED, COL_CARD);
+        _tft.drawString("DURDUR: kulucka kaydi SILINIR,",
+                        SCR_W / 2, SYSM_ACT_Y + SYSM_BTN_H + 10);
+        _tft.drawString("guc kesintisi kurtarmasi kaybolur.",
+                        SCR_W / 2, SYSM_ACT_Y + SYSM_BTN_H + 22);
+    } else {
+        _tft.setTextColor(COL_DIM, COL_CARD);
+        _tft.drawString("Isitici ve nemlendirici devreye girer.",
+                        SCR_W / 2, SYSM_ACT_Y + SYSM_BTN_H + 16);
+    }
+
+    // Vazgec - en genis ve en kolay hedef (yanlislikla acildiysa cikis)
+    drawButton(SYSM_X + 4, SYSM_CANCEL_Y, SYSM_W - 8, SYSM_BTN_H,
+               "VAZGEC", 0x3186, COL_TEXT);
+
     _tft.setTextDatum(TL_DATUM);
 }
 

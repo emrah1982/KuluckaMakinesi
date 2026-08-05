@@ -168,6 +168,14 @@ private:
     unsigned long _lastTouch;
     DisplayTab _tab;
     bool _forceRedraw;
+    // ---- Sistem kontrol modali (Durum sekmesi > DURUM karti) ----
+    // Kulucka baslat/duraklat/devam/durdur icin hizli erisim. ONAY ISTER:
+    // dokunmatik panel ahirda/kumeste yanlislikla surtunebilir ve stop()
+    // NVS'deki kulucka durumunu siler (guc kesintisi kurtarmasi kaybolur).
+    // Tek dokunusla 18 gunluk kulucka bitirilememeli.
+    bool          _sysCtrlOpen;
+    unsigned long _sysCtrlOpenedMs;   // otomatik kapanma icin
+
     // Profil sekmesindeki faz listesinin son kaydirma siniri.
     // drawProfile() hesaplar, handleTouch() sinir kontrolu icin okur; boylece
     // "asagi" dokunusu listenin sonunda bosuna sayac artirmaz.
@@ -256,6 +264,9 @@ private:
     // Bu durum yazilimin cozemedigi bir donanim arizasidir; kullanicinin
     // hangi sekmede oldugundan bagimsiz olarak gormesi gerekir.
     void drawRunawayBanner(const DisplayData &data);
+
+    // Sistem kontrol onay modali
+    void drawSysControl(const DisplayData &data);
 
     void drawGauge(int cx, int cy, int r, float value, float minVal,
                    float maxVal, float target, uint16_t color,
