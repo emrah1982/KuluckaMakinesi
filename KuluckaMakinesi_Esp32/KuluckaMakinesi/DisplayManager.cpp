@@ -1142,9 +1142,13 @@ void DisplayManager::drawGauges(const DisplayData &data) {
     _tft.setTextColor(COL_DIM, COL_CARD);
     _tft.setTextPadding(0);
     _tft.drawString("C SICAKLIK", lx + gw / 2, GAU_Y + 34);
+    // Hedef satiri kirmizi: olculen degerle karistirilmamasi icin ayirt edici
+    _tft.setTextColor(COL_RED, COL_CARD);
     char tt[16];
     snprintf(tt, sizeof(tt), "Hedef: %.1f", data.targetTemp);
+    _tft.setTextPadding(_tft.textWidth("Hedef: 88.8"));
     _tft.drawString(tt, lx + gw / 2, GAU_Y + 44);
+    _tft.setTextPadding(0);
 
     // Nem
     if (_bgDraw) {
@@ -1164,9 +1168,13 @@ void DisplayManager::drawGauges(const DisplayData &data) {
     _tft.setTextColor(COL_DIM, COL_CARD);
     _tft.setTextPadding(0);
     _tft.drawString("% NEM", rx + gw / 2, GAU_Y + 34);
+    // Hedef araligi kirmizi (sicaklik karti ile ayni dil)
+    _tft.setTextColor(COL_RED, COL_CARD);
     char ht[16];
     snprintf(ht, sizeof(ht), "%%%d - %%%d", (int)data.targetHumLow, (int)data.targetHumHigh);
+    _tft.setTextPadding(_tft.textWidth("%88 - %88"));
     _tft.drawString(ht, rx + gw / 2, GAU_Y + 44);
+    _tft.setTextPadding(0);
 }
 
 void DisplayManager::drawInfoRow(const DisplayData &data) {
