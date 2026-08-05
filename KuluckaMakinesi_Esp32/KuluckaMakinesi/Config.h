@@ -435,6 +435,25 @@
 #define FAN_TEMP_LOW        36.0f   // Fan haritalaması alt sıcaklık
 #define FAN_TEMP_HIGH       38.0f   // Fan haritalaması üst sıcaklık
 
+// -------- Fan Kesintili Calisma --------
+// 0 = Fan SUREKLI calisir (varsayilan). En homojen sicaklik dagilimi.
+// 1 = Kesintili: sicaklik hedefin altindayken fan periyodik calisir.
+//
+// UYARI - KULUCKAYA OZGU RISK:
+// Fan yalnizca sogutma araci degil, ayni zamanda HOMOJENLIK aracidir.
+// Uzun sure durursa kabin icinde katmanlasma olur (ust sicak, alt soguk);
+// sensor kendi bolgesini olcer ve yumurtalarin gercek sicakligini temsil
+// etmez. PID dogru olcume gore calistigini sanirken tepsinin bir bolumu
+// hedeften sapabilir.
+// Bu yuzden "kesintili" burada TAMAMEN KAPALI demek degildir: her periyotta
+// garanti bir sirkulasyon suresi vardir ve sicaklik hedefi asarsa fan
+// kesintisiz calismaya doner.
+#define FAN_DUTY_MODE          0
+#define FAN_DUTY_PERIOD_SEC    300   // Periyot (5 dk)
+#define FAN_DUTY_ON_SEC        60    // Her periyotta garanti sirkulasyon (1 dk)
+// Hedefin bu kadar ustunde fan KESINTISIZ calisir (sogutma onceliklidir)
+#define FAN_DUTY_FORCE_DELTA   0.2f
+
 // -------------------- Alarm Eşikleri --------------------
 // EsKi statik esikler — sadece fallback (profil yokken). v3'te dinamik
 // profil-bazli esikler kullanilir (AlarmService.check parametreleri).

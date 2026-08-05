@@ -780,7 +780,7 @@ void IncubationService::updateControls() {
         _fan.setPWM(255);
     } else {
         // Fan kontrolü (sıcaklığa bağlı)
-        _fanCtrl.update(temp);
+        _fanCtrl.update(temp, _phaseMgr.getTargetTemperature());
     }
 
     if (_coolSpray.shouldOverrideHumidifier()) {
