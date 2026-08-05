@@ -66,16 +66,42 @@ gerekmez.
 
 Fan röle üzerinden değil, L298N motor sürücü kartı üzerinden çalışır.
 
-| Sinyal | Kaynak | L298N ucu | Zorunlu mu |
-|--------|--------|-----------|------------|
-| Enable | PCF8574 **P7** | `IN1` | **Evet** |
-| Yön (sabit) | — | `IN2` → **GND** | **Evet** |
-| Hız | ESP32 **IO18** | `ENA` | Opsiyonel |
+| # | Kaynak | L298N ucu | İşlev |
+|---|--------|-----------|-------|
+| 1 | PCF8574 **P7** | `IN1` | Enable — **zorunlu** |
+| 2 | Sistem **GND** | `IN2` | Yön sabitleme — **zorunlu** |
+| 3 | ESP32 **IO18** | `ENA` | Hız PWM — opsiyonel |
+| 4 | Sistem **GND** | `GND` | **Ortak toprak — zorunlu** |
+| 5 | 12V (+) | `+12V` | Motor beslemesi |
+| 6 | 12V (−) | `GND` | Motor beslemesi dönüşü |
 
 **`IN1` LOW iken motor dönmez**, `ENA` ne olursa olsun.
 
-`IN2` mutlaka GND'ye bağlanmalıdır. Boşta bırakılırsa dönüş yönü belirsiz
-olur; motor dönmeyebilir veya ters dönebilir.
+#### Ortak toprak — en sık atlanan nokta
+
+`IN2`'yi PCF8574'ün GND'sine bağlamak **doğrudur**, ama tek başına yetmez:
+
+> **L298N'in kendi `GND` terminali de aynı toprağa bağlanmalıdır.**
+
+Sebebi: `IN1`'e gelen "HIGH" sinyali PCF8574'ün toprağına göre ölçülür.
+L298N kendi girişlerini kendi `GND` pinine göre değerlendirir. Bu ikisi
+birbirine bağlı değilse sinyalin referansı yoktur ve sürücü girişleri
+tanımsız davranır — motor hiç dönmeyebilir veya rastgele davranabilir.
+
+Pratikte tek kural: **ESP32, PCF8574, L298N ve 12V beslemenin eksi ucu —
+dördü de aynı toprak noktasında buluşmalı.** Bu sağlandıktan sonra `IN2`'yi
+bu topraktan herhangi birine bağlayabilirsiniz; PCF8574'ün GND'si de olur.
+
+#### Sinyal seviyesi
+
+PCF8574 3.3V ile beslenir ve çıkışları *quasi-bidirectional*'dır: HIGH
+durumu zayıf bir dahili pull-up ile sağlanır (~100 µA). L298N'in mantık
+girişi 3.3V'u HIGH olarak kabul eder, ancak akım marjı dardır.
+
+> **Öneri:** `IN1` ile 3.3V arasına **4.7 kΩ** pull-up direnci ekleyin.
+> PCF8574 LOW yazarken güçlü şekilde (25 mA'e kadar) çeker, HIGH yazarken
+> dış direnç seviyeyi sağlam tutar. Uzun veya gürültülü kabloda bu fark
+> yaratır.
 
 #### İki kurulum seçeneği
 
@@ -83,10 +109,13 @@ olur; motor dönmeyebilir veya ters dönebilir.
 
 | | Sadece P7 (`= 0`) | P7 + IO18 (`= 1`) |
 |---|---|---|
-| Kablo sayısı | 1 | 2 |
+| Sinyal kablosu | 1 | 2 |
 | L298N `ENA` jumper'ı | **Takılı kalır** | **Çıkarılır** |
 | Fan hızı | Tek hız (tam) | 0–255 arası |
 | Sıcaklığa bağlı hız eğrisi | İşlevsiz | Çalışır |
+
+> `ENA` jumper'ını çıkarmayı unutursanız `ENA` sürekli 5V'ta kalır ve
+> IO18'den gelen PWM hiçbir etki yapmaz — fan hep tam hızda döner.
 
 > **P7 ile hız ayarı yapılamaz.** P7 bir I2C genişletici pinidir; her seviye
 > değişimi bir I2C işlemidir (100 kHz'de ~1 ms). Ulaşılabilecek frekans birkaç
