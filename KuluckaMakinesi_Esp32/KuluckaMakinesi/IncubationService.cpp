@@ -414,6 +414,10 @@ void IncubationService::update() {
             }
         }
 
+        // CO2 ve kritik dusuk nem denetimi. Otomatik kontrol kapali olsa da
+        // bu ikisi kullanicinin tercihine birakilamaz.
+        checkManualModeAlarms();
+
         // Manuel ciksilari uygula (her dongude — canli slider degisimi icin)
         _heater.setPWM(_cleaningHeater);
         _fan.setPWM(_cleaningFan);
@@ -1597,6 +1601,57 @@ void IncubationService::checkIOHealth() {
     // Bus toparlandiysa alarmi temizle
     if (_alarm.getActiveAlarmType() == ALARM_IO_FAIL && rb.isHealthy()) {
         _alarm.clearAlarm(ALARM_IO_FAIL);
+    }
+}
+
+// ---------------------------------------------------------------------
+//  Manuel/temizlik modu guvenlik denetimleri
+//
+//  Bu modda otomatik kontrol kapali ve cikislari kullanici yonetiyor, bu
+//  yuzden normal calisma esikleri (profil nem araligi vb.) uygulanmaz -
+//  kullanici nemlendiriciyi bilerek kapattiginda surekli alarm verirdi.
+//
+//  Ancak iki kosul kullanicinin tercihine BIRAKILAMAZ:
+//
+//   1) KRITIK DUSUK NEM: ic kabuk zari kurur, civciv zara yapisir ve cikim
+//      sirasinda donemeyip olur. Bu, normal alt esikten cok daha asagida
+//      bir taban (HUM_CRITICAL_LOW); buraya inmek bilincli bir tercih
+//      olamaz, kaza veya unutkanliktir.
+//   2) CO2: havalandirma yetersizligi calisma moduna bagli degildir.
+//      Esikler profilden gelir, normal moddakiyle ayni.
+//
+//  Asiri isinma korumasi zaten temizlik dalinda ayrica calisiyor.
+// ---------------------------------------------------------------------
+void IncubationService::checkManualModeAlarms() {
+    if (!_sensorMgr.isAnyValid()) return;   // olcum yoksa karar verilemez
+
+    // --- CO2 ---
+    if (_co2Valid) {
+        const AnimalProfile* prof = _phaseMgr.getCurrentProfile();
+        uint16_t co2High = prof ? prof->co2High     : 5000;
+        uint16_t co2Crit = prof ? prof->co2Critical : 7000;
+        if (co2Crit > 0 && _co2Value >= co2Crit) {
+            _alarm.triggerAlarm(ALARM_CO2_CRITICAL,
+                "Manuel mod - KRITIK CO2: " + String(_co2Value) + " ppm");
+            return;   // en oncelikli uyari
+        }
+        if (co2High > 0 && _co2Value >= co2High) {
+            _alarm.triggerAlarm(ALARM_CO2_HIGH,
+                "Manuel mod - Yuksek CO2: " + String(_co2Value) + " ppm");
+            return;
+        }
+    }
+
+    // --- Kritik dusuk nem ---
+    float hum = _sensorMgr.getHumidity();
+    if (hum < HUM_CRITICAL_LOW) {
+        _alarm.triggerAlarm(ALARM_HUM_LOW,
+            "Manuel mod - KRITIK dusuk nem: %" + String(hum, 1) +
+            " (zar kurumasi riski)");
+    } else if (_alarm.getActiveAlarmType() == ALARM_HUM_LOW) {
+        // Nem toparlandi: manuel modda kullanici zaten mudahale ediyor,
+        // alarmi elle kapatmasini beklemeye gerek yok.
+        _alarm.clearAlarm(ALARM_HUM_LOW);
     }
 }
 

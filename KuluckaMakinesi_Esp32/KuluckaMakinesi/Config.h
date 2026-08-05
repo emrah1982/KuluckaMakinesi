@@ -472,6 +472,22 @@
 // Durum normale donerse alarm kalkar; bozulursa bu suredan sonra yeniden calar.
 #define ALARM_MUTE_DURATION_MS     (10UL * 60UL * 1000UL)  // 10 dakika
 
+// -------- Manuel/Temizlik Modu Guvenlik Esikleri --------
+// Manuel modda otomatik kontrol kapalidir ve kullanici cikislari kendi
+// yonetir; bu yuzden normal calisma esikleri (profil bazli nem araligi vb.)
+// uygulanmaz - surekli alarm verirdi. Ancak BAZI kosullar kullanicinin
+// tercihine birakilamaz:
+//
+//   KRITIK DUSUK NEM: ic kabuk zari kurur, civciv zara YAPISIR ve cikim
+//   sirasinda donemeyip olur. Kulucka kayiplarinin en bilinen sebeplerinden.
+//   Normal alt esikten (profil bazli, %55 gibi) ayridir: kullanici manuel
+//   modda nemlendiriciyi bilerek kapatabilir, ama bu seviyenin altina inmek
+//   bilincli bir tercih olamaz.
+//
+//   CO2: havalandirma yetersizligi moda bagli degildir. Esikler profilden
+//   gelir (co2High / co2Critical), normal moddakiyle ayni.
+#define HUM_CRITICAL_LOW           40.0f   // % - altinda zar kurumasi riski
+
 // Dol kontrolu (candling) alarm "ERTELE" butonuna basildiginda susturma suresi
 #define CANDLING_SNOOZE_DURATION_MS (60UL * 60UL * 1000UL)  // 1 saat
 

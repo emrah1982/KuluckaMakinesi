@@ -317,6 +317,11 @@ private:
     // Kabuk sicakligi embriyonun gercek sicakligina en yakin olcumdur.
     void checkEggTempAlarms(float targetTemp);
 
+    // Manuel/temizlik modunda gecerli kalan guvenlik denetimleri.
+    // Otomatik kontrol kapalidir ama CO2 ve KRITIK DUSUK NEM kullanicinin
+    // tercihine birakilamaz; ikisi de embriyoyu oldurur.
+    void checkManualModeAlarms();
+
 #if RELAY_TEST_ENABLED
     // Role test modu durumu
     bool          _relayTestActive;
