@@ -488,6 +488,21 @@
 //   gelir (co2High / co2Critical), normal moddakiyle ayni.
 #define HUM_CRITICAL_LOW           40.0f   // % - altinda zar kurumasi riski
 
+// -------- Nemlendirici Etkinlik Denetimi --------
+// Isitma tarafinda "kapattim ama sicaklik dusmuyor" (termal kacis) kontrolu
+// var; nem tarafinda karsiligi yoktu. HumidityController bang-bang calisiyor
+// ve nemlendiriciye komut verip ISE YARADIGINI VARSAYIYOR.
+//
+// Gercek dunya arizasi: 21 gunluk bir kuluckada su deposunun bosalmasi
+// siradan bir olaydir. Depo bitince nemlendirici calismaya devam eder ama
+// nem yukselmez; ic kabuk zari kurur ve civciv kabuga yapisir. Sessizce
+// olur - hicbir sey bunu fark etmiyordu.
+//
+// Nemlendirici KESINTISIZ bu sure boyunca acik kalip nem en az bu kadar
+// yukselmediyse ariza kabul edilir.
+#define HUM_EFFECT_TIMEOUT_MS      (15UL * 60UL * 1000UL)  // 15 dakika
+#define HUM_EFFECT_MIN_RISE        1.5f                    // % - beklenen min artis
+
 // Dol kontrolu (candling) alarm "ERTELE" butonuna basildiginda susturma suresi
 #define CANDLING_SNOOZE_DURATION_MS (60UL * 60UL * 1000UL)  // 1 saat
 

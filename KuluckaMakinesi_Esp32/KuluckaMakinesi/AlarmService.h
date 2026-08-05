@@ -29,7 +29,11 @@ enum AlarmType {
     ALARM_THERMAL_RUNAWAY,      // Kapatildi ama sicaklik dusmuyor (role yapismis)
     ALARM_EGG_TEMP_HIGH,        // Yumurta kabuk sicakligi cok yuksek (embriyo riski)
     ALARM_EGG_TEMP_LOW,         // Yumurta kabuk sicakligi cok dusuk
-    ALARM_EGG_SENSOR_LOST       // Yumurta IR kaynagi kayboldu (yerel + uzak yok)
+    ALARM_EGG_SENSOR_LOST,      // Yumurta IR kaynagi kayboldu (yerel + uzak yok)
+    // Nemlendirici calisiyor ama nem yukselmiyor -> su deposu bos olabilir.
+    // ALARM_HUM_LOW'dan AYRI bir tip olmasi kasitli: kullanici "dusuk nem"
+    // alarmini kapatmis olsa bile bu ariza uyarisi yine de gorunur.
+    ALARM_HUMIDIFIER_FAIL
 };
 
 struct AlarmEvent {

@@ -806,6 +806,33 @@ void IncubationService::updateControls() {
     } else {
         // Normal nem kontrolü
         _humCtrl.update(hum);
+
+        // ---- NEMLENDIRICI ETKINLIK DENETIMI ----
+        // Isitma tarafindaki termal kacis kontrolunun nem karsiligi:
+        // cikisa komut verdik, GERCEKTEN ise yaradi mi?
+        // Nemlendirici kesintisiz calisip nem yukselmiyorsa en olasi sebep
+        // su deposunun bosalmasidir. 21 gunluk bir kuluckada bu siradan bir
+        // olaydir ve fark edilmezse zar kurumasina, civcivin kabuga
+        // yapismasina yol acar.
+        //
+        // ALARM_HUM_LOW yerine AYRI bir tip kullaniliyor: kullanici "dusuk
+        // nem" alarmini kapatmis olsa bile bu ariza uyarisi gorunur kalir.
+        if (_humCtrl.isIneffective()) {
+            _alarm.triggerAlarm(ALARM_HUMIDIFIER_FAIL,
+                "Nemlendirici etkisiz! Su deposunu kontrol edin (%" +
+                String(hum, 1) + ")");
+        }
+
+        // ---- KRITIK DUSUK NEM ----
+        // Profil alt esigi (orn. %55) icin zaten checkDynamic alarm veriyor.
+        // Ancak o alarm susturulup/kapatilabilir; nem dusmeye devam ederse
+        // 24 saat boyunca sessiz kalinabilir. Kritik taban AYRI bir uyari
+        // olarak yeniden tetiklenir.
+        if (hum < HUM_CRITICAL_LOW) {
+            _alarm.triggerAlarm(ALARM_HUMIDIFIER_FAIL,
+                "KRITIK dusuk nem: %" + String(hum, 1) +
+                " - zar kurumasi riski");
+        }
     }
 }
 
