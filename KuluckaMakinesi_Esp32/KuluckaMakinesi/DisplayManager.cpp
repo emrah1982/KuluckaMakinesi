@@ -525,6 +525,27 @@ TouchAction DisplayManager::update(const DisplayData &data) {
         s_prevCleaning = data.cleaningActive;
     }
 
+    // FAZ ILERLEMESI: gun veya aktif evre degisince tam yenile.
+    // Profil sekmesindeki evre cerceveleri (yesil/gri/yok) _bgDraw katmaninda
+    // cizilir, yani yalnizca tam yenilemede. Bu tetik olmadan gun donse bile
+    // tamamlanan evre gri cerceveye GECMEZ; ekran acik kaldigi surece eski
+    // durumu gosterir ve ancak sekme degistirilince duzelirdi.
+    // Gunde bir kez calisir, maliyeti ihmal edilebilir.
+    static int     s_prevDay      = -1;
+    static uint8_t s_prevPhaseIdx = 0xFF;
+    if (data.currentDay != s_prevDay || data.currentPhaseIndex != s_prevPhaseIdx) {
+        _forceRedraw   = true;
+        s_prevDay      = data.currentDay;
+        s_prevPhaseIdx = data.currentPhaseIndex;
+    }
+
+    // Termal kacis bannerinin acilmasi/kapanmasi da alan temizligi ister
+    static bool s_prevRunaway = false;
+    if (data.thermalRunaway != s_prevRunaway) {
+        _forceRedraw  = true;
+        s_prevRunaway = data.thermalRunaway;
+    }
+
     // Dokunma her zaman kontrol et (ekran guncelleme beklemeden)
     TouchAction action = handleTouch(data);
 
