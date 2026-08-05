@@ -18,6 +18,11 @@ IncubationService::IncubationService()
     , _co2Valid(false)  // Gercek okuma gelene kadar gecersiz
     , _eggLastValidMs(0)
     , _eggEverValid(false)
+#if RELAY_TEST_ENABLED
+    , _relayTestActive(false)
+    , _relayTestFan(0)
+    , _relayTestStartMs(0)
+#endif
     , _historyIndex(0)
     , _historyCount(0)
     , _lastHistoryTime(0)
@@ -40,6 +45,9 @@ IncubationService::IncubationService()
     memset(_co2History, 0, sizeof(_co2History));
     memset(&_overrideProfileBuffer, 0, sizeof(_overrideProfileBuffer));
     memset(_phaseLog, 0, sizeof(_phaseLog));
+#if RELAY_TEST_ENABLED
+    memset(_relayTestOn, 0, sizeof(_relayTestOn));
+#endif
 }
 
 void IncubationService::begin() {
@@ -303,6 +311,48 @@ void IncubationService::update() {
             }
         }
     }
+
+#if RELAY_TEST_ENABLED
+    // ---- ROLE TEST MODU (GECICI) ----
+    // Otomatik kontrolun TAMAMI askiya alinir; roleler dogrudan yazilir.
+    // Kulucka STATE'i degistirilmez: test bitince kaldigi yerden devam eder.
+    if (_relayTestActive) {
+        _sensorMgr.readAll();
+
+        // Zaman asimi - kullanici unutup giderse otomatik cikis
+        if (now - _relayTestStartMs >= RELAY_TEST_TIMEOUT_MS) {
+            Serial.println("[RTEST] Zaman asimi - test modundan cikiliyor");
+            stopRelayTest();
+            return;
+        }
+
+        // Asiri isinma korumasi test sirasinda da VAZGECILMEZ.
+        // Kullanici isitici rolesini acip birakabilir; PID yok, tek koruma bu.
+        float rt = _sensorMgr.getTemperature();
+        if (_sensorMgr.isAnyValid() && rt >= SAFETY_TEMP_MAX &&
+            _relayTestOn[RELAY_BIT_HEATER]) {
+            _relayTestOn[RELAY_BIT_HEATER] = false;
+            _alarm.triggerAlarm(ALARM_TEMP_HIGH,
+                "Role testi: " + String(rt, 1) + "C - isitici kapatildi");
+            Serial.printf("[RTEST] GUVENLIK: %.1fC >= %.1fC, isitici rolesi kapatildi\n",
+                          rt, SAFETY_TEMP_MAX);
+        }
+
+        // Roleleri dogrudan yaz (HeaterDriver/TurnerDriver devrede degil)
+        RelayBoard& rb = RelayBoard::instance();
+        rb.setHeater(_relayTestOn[RELAY_BIT_HEATER]);
+        rb.setHumidifier(_relayTestOn[RELAY_BIT_HUMIDIFIER]);
+        rb.setTurnerPower(_relayTestOn[RELAY_BIT_TURNER_POWER]);
+        rb.setTurnerDirection(_relayTestOn[RELAY_BIT_TURNER_DIR]);
+
+        // Fan role degil, IO18 PWM
+        _fan.setPWM(_relayTestFan);
+
+        checkIOHealth();     // role yazmasi gercekten gecti mi
+        _speaker.update();
+        return;
+    }
+#endif
 
     // Temizlik modu: PID/otomatik kontrol bypass, sadece kullanici ayarlari
     if (_state == SYS_CLEANING) {
@@ -865,6 +915,12 @@ void IncubationService::updateDisplay() {
     dd.muxOK               = I2CMux::isReady();
     dd.muxRecoverCount     = I2CMux::getRecoverCount();
     dd.thermalRunaway      = _safety.isRunaway();
+
+#if RELAY_TEST_ENABLED
+    dd.relayTestActive = _relayTestActive;
+    for (uint8_t i = 0; i < 4; i++) dd.relayTestOn[i] = _relayTestOn[i];
+    dd.relayTestFan    = _relayTestFan;
+#endif
     dd.eggDiscoveryStatus  = (uint8_t)_eggTempSvc.getDiscoveryStatus();
 
     // Temizlik modu bilgisi
@@ -969,6 +1025,16 @@ void IncubationService::updateDisplay() {
             Serial.printf("[MANUEL] Nemlendirici %s\n", nh ? "ACIK" : "KAPALI");
             break;
         }
+#if RELAY_TEST_ENABLED
+        // ---- Role testi (GECICI) ----
+        case TOUCH_RTEST_ENTER: startRelayTest();  break;
+        case TOUCH_RTEST_EXIT:  stopRelayTest();   break;
+        case TOUCH_RTEST_R0:    toggleTestRelay(RELAY_BIT_HEATER);       break;
+        case TOUCH_RTEST_R1:    toggleTestRelay(RELAY_BIT_HUMIDIFIER);   break;
+        case TOUCH_RTEST_R2:    toggleTestRelay(RELAY_BIT_TURNER_POWER); break;
+        case TOUCH_RTEST_R3:    toggleTestRelay(RELAY_BIT_TURNER_DIR);   break;
+        case TOUCH_RTEST_FAN:   toggleTestFan();   break;
+#endif
         case TOUCH_CLEANING_TOGGLE: {
             // Aktifse durdur, degilse basla
             DEBUG_PRINTF("[CLEAN] TFT buton — mevcut state=%d cleaning=%d\n",
@@ -1353,6 +1419,76 @@ SystemStatus IncubationService::getStatus() const {
     s.eggSensorIP   = _eggTempSvc.getIP();
     return s;
 }
+
+#if RELAY_TEST_ENABLED
+// =====================================================================
+//  ROLE TEST MODU (GECICI - Config.h RELAY_TEST_ENABLED)
+//
+//  Amac: PCF8574 (MUX CH7) uzerindeki dort rolenin fiziksel olarak
+//  calistigini dogrulamak. Otomatik kontrol askiya alinir ama kulucka
+//  STATE'i korunur - stop() gibi NVS kaydini SILMEZ, test bitince kulucka
+//  kaldigi yerden devam eder.
+// =====================================================================
+bool IncubationService::startRelayTest() {
+    if (_relayTestActive) return true;
+
+    // Guvenli baslangic: her sey kapali. Kullanici hangi rolenin
+    // tikladigini duyarak dogrulayacak, onceki durum karistirmamalı.
+    memset(_relayTestOn, 0, sizeof(_relayTestOn));
+    _relayTestFan     = 0;
+    _relayTestActive  = true;
+    _relayTestStartMs = millis();
+
+    // Otomatik surucularin ele karismamasi icin hepsini durdur
+    _heater.stop();
+    _humidifier.turnOff();
+    _turner.stop();
+    _coolSpray.cancel();
+    _pid.reset();
+    RelayBoard::instance().forceAllOff();
+
+    Serial.println("[RTEST] Role testi BASLADI - otomatik kontrol askida");
+    Serial.printf("[RTEST] Otomatik cikis: %lu dk\n",
+                  (unsigned long)(RELAY_TEST_TIMEOUT_MS / 60000UL));
+    return true;
+}
+
+void IncubationService::stopRelayTest() {
+    if (!_relayTestActive) return;
+    _relayTestActive = false;
+    memset(_relayTestOn, 0, sizeof(_relayTestOn));
+    _relayTestFan = 0;
+
+    // Cikislari kapat ve surucu ic durumlarini gercekle esitle:
+    // test sirasinda roleler dogrudan yazildi, HeaterDriver bundan habersiz.
+    RelayBoard::instance().forceAllOff();
+    _heater.stop();
+    _humidifier.turnOff();
+    _turner.stop();
+    _fan.setPWM(FAN_MIN_PWM);
+
+    Serial.println("[RTEST] Role testi bitti - otomatik kontrol geri geldi");
+}
+
+void IncubationService::toggleTestRelay(uint8_t bit) {
+    if (!_relayTestActive || bit > 3) return;
+    _relayTestOn[bit] = !_relayTestOn[bit];
+    static const char* names[4] = {"Isitici", "Nemlendirici",
+                                   "Cevirme guc", "Cevirme yon"};
+    Serial.printf("[RTEST] P%u (%s) -> %s\n",
+                  bit, names[bit], _relayTestOn[bit] ? "ACIK" : "KAPALI");
+}
+
+void IncubationService::toggleTestFan() {
+    if (!_relayTestActive) return;
+    _relayTestFan = (_relayTestFan > 0) ? 0 : FAN_MAX_PWM;
+    Serial.printf("[RTEST] Fan PWM -> %u\n", _relayTestFan);
+}
+
+bool IncubationService::getTestRelay(uint8_t bit) const {
+    return (bit <= 3) ? _relayTestOn[bit] : false;
+}
+#endif // RELAY_TEST_ENABLED
 
 // ---------------------------------------------------------------------
 //  I/O saglik denetimi

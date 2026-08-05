@@ -444,15 +444,24 @@ TouchAction DisplayManager::handleTouch(const DisplayData &data) {
             const int mBtnY = ny + 17;
             const int mBtnH = 22;
             const int mGap  = 4;
-            const int mBtnW = (cardW - mGap) / 2;
-            if (touchInRect(tx, ty, cardMargin, mBtnY, mBtnW, mBtnH)) {
+            const int mBtnW = (cardW - 2 * mGap) / 3;
+            const int m0 = cardMargin;
+            const int m1 = m0 + mBtnW + mGap;
+            const int m2 = m1 + mBtnW + mGap;
+            if (touchInRect(tx, ty, m0, mBtnY, mBtnW, mBtnH)) {
                 _forceRedraw = true;
                 return TOUCH_MANUAL_HEATER;
             }
-            if (touchInRect(tx, ty, cardMargin + mBtnW + mGap, mBtnY, mBtnW, mBtnH)) {
+            if (touchInRect(tx, ty, m1, mBtnY, mBtnW, mBtnH)) {
                 _forceRedraw = true;
                 return TOUCH_MANUAL_HUM;
             }
+#if RELAY_TEST_ENABLED
+            if (touchInRect(tx, ty, m2, mBtnY, mBtnW, mBtnH)) {
+                _forceRedraw = true;
+                return TOUCH_RTEST_ENTER;
+            }
+#endif
         }
         const int bottomH = 28;
         const int halfW = (cardW - 4) / 2;
@@ -481,6 +490,31 @@ TouchAction DisplayManager::handleTouch(const DisplayData &data) {
             return TOUCH_CLEANING_TOGGLE;
         }
     }
+
+#if RELAY_TEST_ENABLED
+    // --- Role testi acikken yalnizca test butonlari dinlenir ---
+    // Koordinatlar drawRelayTest ile BIREBIR ayni olmali.
+    if (data.relayTestActive) {
+        const int mx = 6, my = 24, mw = SCR_W - 12;
+        const int bx = mx + 4, bw2 = (mw - 12) / 2;
+        const int rx2 = bx + bw2 + 4;
+        const int bh = 38;
+        const int r1y = my + 42;
+        const int r2y = r1y + bh + 4;
+        const int fy  = r2y + bh + 4;
+
+        if (touchInRect(tx, ty, bx,  r1y, bw2, bh)) return TOUCH_RTEST_R0;
+        if (touchInRect(tx, ty, rx2, r1y, bw2, bh)) return TOUCH_RTEST_R1;
+        if (touchInRect(tx, ty, bx,  r2y, bw2, bh)) return TOUCH_RTEST_R2;
+        if (touchInRect(tx, ty, rx2, r2y, bw2, bh)) return TOUCH_RTEST_R3;
+        if (touchInRect(tx, ty, bx,  fy,  mw - 8, bh)) return TOUCH_RTEST_FAN;
+        if (touchInRect(tx, ty, bx,  fy + bh + 20, mw - 8, 40)) {
+            _forceRedraw = true;
+            return TOUCH_RTEST_EXIT;
+        }
+        return TOUCH_NONE;   // modal disi dokunuslar yutulur
+    }
+#endif
 
     // --- Sistem kontrol modali acikken baska hicbir sey dinlenmez ---
     // Modal bir ONAY penceresidir; arka plandaki kontrollerin de tetiklenmesi
@@ -695,6 +729,15 @@ TouchAction DisplayManager::update(const DisplayData &data) {
         _tft.fillRect(0, 0, SCR_W, PAGE_H, COL_BG);
         _forceRedraw = false;
     }
+
+#if RELAY_TEST_ENABLED
+    // Role testi acikken her sey onun altinda kalir: otomatik kontrol zaten
+    // askida, ekranda da baska bir sey gosterilmesi yaniltici olurdu.
+    if (data.relayTestActive) {
+        drawRelayTest(data);
+        return action;
+    }
+#endif
 
     // Sistem kontrol modali en ustte: onay bekleyen bir pencere arka plandaki
     // olcumlerle karistirilmamali.
@@ -1722,6 +1765,72 @@ void DisplayManager::drawSysControl(const DisplayData &data) {
     _tft.setTextDatum(TL_DATUM);
 }
 
+#if RELAY_TEST_ENABLED
+// ---------------------------------------------------------------------
+//  ROLE TEST MODALI (GECICI - Config.h RELAY_TEST_ENABLED)
+//
+//  PCF8574 (MUX CH7) uzerindeki dort rolenin tek tek denenmesi. Fan
+//  ROLEDE DEGIL: IO18 uzerinden 25 kHz PWM ile L298N surucuye gidiyor,
+//  bu yuzden ayri bir buton olarak veriliyor.
+//
+//  Buton genisligi 108 px; etiketler Font 2'de en fazla ~12 karakter
+//  olacak sekilde secildi.
+// ---------------------------------------------------------------------
+void DisplayManager::drawRelayTest(const DisplayData &data) {
+    const int mx = 6, my = 24, mw = SCR_W - 12, mh = 236;   // 24..260
+    const int bx = mx + 4, bw2 = (mw - 12) / 2;             // 108
+    const int rx2 = bx + bw2 + 4;
+    const int bh = 38;
+
+    _tft.fillRoundRect(mx, my, mw, mh, 8, COL_CARD);
+    _tft.drawRoundRect(mx, my, mw, mh, 8, COL_ORANGE);
+
+    _tft.setTextSize(1);
+    _tft.setTextDatum(MC_DATUM);
+    _tft.setTextPadding(0);
+
+    _tft.setTextFont(2);
+    _tft.setTextColor(COL_ORANGE, COL_CARD);
+    _tft.drawString("ROLE TESTI", SCR_W / 2, my + 14);
+    _tft.setTextFont(1);
+    _tft.setTextColor(COL_DIM, COL_CARD);
+    _tft.drawString("PCF8574 - MUX CH7", SCR_W / 2, my + 30);
+
+    // Dort role - 2x2
+    const int r1y = my + 42;
+    const int r2y = r1y + bh + 4;
+    drawButton(bx,  r1y, bw2, bh, "P0 ISITICI",
+               data.relayTestOn[0] ? COL_RED : 0x3186, COL_TEXT);
+    drawButton(rx2, r1y, bw2, bh, "P1 NEMLEND.",
+               data.relayTestOn[1] ? COL_BLUE : 0x3186, COL_TEXT);
+    drawButton(bx,  r2y, bw2, bh, "P2 CEV.GUC",
+               data.relayTestOn[2] ? COL_GREEN : 0x3186, COL_TEXT);
+    drawButton(rx2, r2y, bw2, bh, "P3 CEV.YON",
+               data.relayTestOn[3] ? COL_PURPLE : 0x3186, COL_TEXT);
+
+    // Fan - role degil, PWM
+    const int fy = r2y + bh + 4;
+    char fbuf[20];
+    snprintf(fbuf, sizeof(fbuf), "FAN PWM %u", (unsigned)data.relayTestFan);
+    drawButton(bx, fy, mw - 8, bh, fbuf,
+               data.relayTestFan > 0 ? COL_CYAN : 0x3186, COL_TEXT);
+
+    // Durum satiri: role yazmasi gercekten geciyor mu
+    _tft.setTextFont(1);
+    _tft.setTextDatum(MC_DATUM);
+    _tft.setTextColor(data.relayOK ? COL_GREEN : COL_RED, COL_CARD);
+    _tft.setTextPadding(200);
+    _tft.drawString(data.relayOK ? "Role karti: OK"
+                                 : "Role karti: YAZILAMIYOR!",
+                    SCR_W / 2, fy + bh + 10);
+    _tft.setTextPadding(0);
+
+    // Cikis
+    drawButton(bx, fy + bh + 20, mw - 8, 40, "TESTI BITIR", COL_ORANGE, COL_TEXT);
+    _tft.setTextDatum(TL_DATUM);
+}
+#endif // RELAY_TEST_ENABLED
+
 void DisplayManager::drawAlarm(const DisplayData &data) {
     if (_bgDraw) _tft.fillRoundRect(2, ALM_Y, SCR_W - 4, ALM_H, 4, COL_CARD);
     if (data.alarmActive) {
@@ -1881,24 +1990,26 @@ void DisplayManager::drawControl(const DisplayData &data) {
         const int mBtnY = ny + 17;
         const int mBtnH = 22;
         const int mGap  = 4;
-        const int mBtnW = (cardW - mGap) / 2;
-        const int mlx   = cardMargin;
-        const int mrx   = cardMargin + mBtnW + mGap;
+        // Uc buton: ISITICI | NEM | TEST. Genislik 73 px, Font 2'de en fazla
+        // ~8 karakter sigar; etiketler buna gore kisa tutuldu ve aktif durum
+        // "*" yerine RENK ile gosteriliyor (yildiz onek 73 px'e sigmiyordu).
+        const int mBtnW = (cardW - 2 * mGap) / 3;
+        const int m0 = cardMargin;
+        const int m1 = m0 + mBtnW + mGap;
+        const int m2 = m1 + mBtnW + mGap;
 
         bool htOn = data.cleaningActive && (data.heaterPWM > 0);
         bool hmOn = data.cleaningActive && data.humidifierOn;
 
-        // Etiketler buton genisligine (114 px) gore secildi. Font 2'de
-        // "ISITICI: KAPALI" 15 karakter = ~120 px ile tasiyordu. Aktif durum
-        // "*" onekiyle isaretleniyor - bu ekranin baska yerlerinde de
-        // kullanilan bir dil ("* PID", "* Sogutma"). Renk destekleyici,
-        // tek basina tasiyici degil.
-        drawButton(mlx, mBtnY, mBtnW, mBtnH,
-                   htOn ? "* ISITICI" : "ISITICI",
+        drawButton(m0, mBtnY, mBtnW, mBtnH, "ISITICI",
                    htOn ? COL_RED : 0x3186, COL_TEXT);
-        drawButton(mrx, mBtnY, mBtnW, mBtnH,
-                   hmOn ? "* NEMLEND." : "NEMLEND.",
+        drawButton(m1, mBtnY, mBtnW, mBtnH, "NEM",
                    hmOn ? COL_BLUE : 0x3186, COL_TEXT);
+#if RELAY_TEST_ENABLED
+        // GECICI: role testi girisi. RELAY_TEST_ENABLED 0 olunca bu buton
+        // kaybolur ve yerini bos birakir; digerleri ayni yerde kalir.
+        drawButton(m2, mBtnY, mBtnW, mBtnH, "TEST", COL_ORANGE, COL_TEXT);
+#endif
     }
 
     // ========== ALT SATIR: PROFIL SEC + PROFIL DUZENLE ==========

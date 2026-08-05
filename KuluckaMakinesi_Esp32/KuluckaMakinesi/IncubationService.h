@@ -132,6 +132,22 @@ public:
     // Otomatik timeout: CLEANING_TIMEOUT_MS sonra onceki duruma donulur.
     bool startCleaning();                                 // Onceki state'i saklar
     void stopCleaning();                                  // Onceki state'e doner
+
+#if RELAY_TEST_ENABLED
+    // ---------- ROLE TEST MODU (GECICI) ----------
+    // Devreye alma testleri icin PCF8574 (MUX CH7) rolelerinin tek tek
+    // acilip kapatilmasi. Otomatik kontrol askiya alinir; kulucka STATE'i
+    // DEGISMEZ, test bitince kaldigi yerden devam eder (stop() gibi kayit
+    // silmez). Asiri isinma korumasi test sirasinda da calisir.
+    // Config.h'de RELAY_TEST_ENABLED 0 yapilinca tumu derlemeden cikar.
+    bool startRelayTest();
+    void stopRelayTest();
+    bool isRelayTestActive() const { return _relayTestActive; }
+    void toggleTestRelay(uint8_t bit);      // 0..3 (P0..P3)
+    void toggleTestFan();                   // fan PWM 0 <-> FAN_MAX_PWM
+    bool    getTestRelay(uint8_t bit) const;
+    uint8_t getTestFan() const { return _relayTestFan; }
+#endif
     bool isCleaning() const;
     void setCleaningOutputs(uint8_t heaterPWM, uint8_t fanPWM, bool humidifierOn, bool turnerOn);
     uint8_t getCleaningHeater()    const { return _cleaningHeater; }
@@ -296,6 +312,14 @@ private:
     // Yumurta (kabuk) sicaklik alarmlari. targetTemp aktif fazin hedefidir.
     // Kabuk sicakligi embriyonun gercek sicakligina en yakin olcumdur.
     void checkEggTempAlarms(float targetTemp);
+
+#if RELAY_TEST_ENABLED
+    // Role test modu durumu
+    bool          _relayTestActive;
+    bool          _relayTestOn[4];    // P0..P3
+    uint8_t       _relayTestFan;      // fan PWM (rolede degil, IO18 PWM)
+    unsigned long _relayTestStartMs;
+#endif
 
     // Yumurta IR kaynagi izleme (alarm zamanlamasi icin)
     unsigned long _eggLastValidMs;   // Son gecerli okuma zamani (0 = hic olmadi)

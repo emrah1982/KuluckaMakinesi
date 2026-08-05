@@ -52,7 +52,15 @@ enum TouchAction {
     // aktif degilse once o moda gecilir: PID ile elle kontrolun ayni anda
     // isiticiye komut vermesi kabul edilemez.
     TOUCH_MANUAL_HEATER,        // Isitici ac/kapa (manuel)
-    TOUCH_MANUAL_HUM            // Nemlendirici ac/kapa (manuel)
+    TOUCH_MANUAL_HUM,           // Nemlendirici ac/kapa (manuel)
+    // ---- Role testi (GECICI - Config.h RELAY_TEST_ENABLED) ----
+    TOUCH_RTEST_ENTER,          // Test moduna gir
+    TOUCH_RTEST_EXIT,           // Test modundan cik
+    TOUCH_RTEST_R0,             // P0 Isitici rolesi
+    TOUCH_RTEST_R1,             // P1 Nemlendirici rolesi
+    TOUCH_RTEST_R2,             // P2 Cevirme guc rolesi
+    TOUCH_RTEST_R3,             // P3 Cevirme yon rolesi
+    TOUCH_RTEST_FAN             // Fan PWM (role degil, IO18)
 };
 
 // ==================== GOSTERGE VERISI ====================
@@ -131,6 +139,13 @@ struct DisplayData {
     bool     muxOK;            // I2C multiplexer ayakta mi
     uint32_t muxRecoverCount;  // Acilistan beri bus kurtarma sayisi (tani)
     bool     thermalRunaway;   // Kapatildi ama sicaklik dusmuyor -> FIZIKSEL MUDAHALE
+
+#if RELAY_TEST_ENABLED
+    // ---- Role testi (GECICI) ----
+    bool     relayTestActive;
+    bool     relayTestOn[4];   // P0..P3
+    uint8_t  relayTestFan;     // fan PWM (role degil, IO18)
+#endif
     bool     eggSensorEnabled; // Servis aktif/pasif (kullanici toggle)
     uint8_t  eggDiscoveryStatus; // 0=NONE, 1=RUNNING, 2=OK, 3=FAILED
     // Temizlik / bakim modu
@@ -273,6 +288,11 @@ private:
 
     // Sistem kontrol onay modali
     void drawSysControl(const DisplayData &data);
+
+#if RELAY_TEST_ENABLED
+    // Role test modali (GECICI). PCF8574 rolelerinin tek tek denenmesi.
+    void drawRelayTest(const DisplayData &data);
+#endif
 
     void drawGauge(int cx, int cy, int r, float value, float minVal,
                    float maxVal, float target, uint16_t color,

@@ -144,6 +144,18 @@
 // Bağlantı örneği: P0=Isıtıcı, P1=Nemlendirici, P2=Motor Güç, P3=Motor Yön
 // Röle kartı, MUX'un 7. kanalına (SD7/SC7) bağlanmalıdır.
 
+// -------------------- ROLE TEST MODU (GECICI) --------------------
+// Devreye alma sirasinda rolelerin FIZIKSEL olarak calistigini dogrulamak
+// icin TFT'den dogrudan bit kontrolu saglar. PCF8574 (MUX CH7) uzerindeki
+// dort role tek tek acilip kapatilabilir, fan PWM ayri kontrol edilir.
+//
+// Testler bitince bu satiri 0 yapin: tum test kodu (modal, dokunma, servis
+// mantigi) derlemeden cikar, kalici arayuzde iz birakmaz.
+#define RELAY_TEST_ENABLED      1
+// Kullanici unutup giderse otomatik cikis. Test modunda otomatik kontrol
+// devre disi oldugu icin bu sure kisa tutuldu.
+#define RELAY_TEST_TIMEOUT_MS   (10UL * 60UL * 1000UL)   // 10 dakika
+
 // -------------------- Isitici Kontrol Modu --------------------
 // 0 = PID + Time-Proportional (rolu HEATER_WINDOW_MS pencerede sik anahtarlar)
 // 1 = BANG-BANG (basit termostat: sicaklik dustugunde ON, ulasinca OFF)
