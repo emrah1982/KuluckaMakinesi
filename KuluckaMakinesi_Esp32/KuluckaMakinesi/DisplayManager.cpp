@@ -2986,26 +2986,49 @@ void DisplayManager::drawAlarmModal(const DisplayData &data) {
         _tft.drawString(msg, SCR_W / 2, 90);
     }
 
-    // Sensor durumu: mevcut ve hedef degerler — kompakt (3 buton icin alani azaltildi)
-    _tft.fillRect(8, 130, SCR_W - 16, 45, bgColor);
+    // ---- SENSOR DEGERLERI: "neden alarm aldim" sorusunun cevabi ----
+    // Her deger KENDI DURUM RENGINDE yaziliyor (Durum/Olcum sekmeleriyle ayni
+    // kaynak). Boylece sinir disinda olan parametre bir bakista ayrilir;
+    // eskiden hepsi ayni notr renkteydi ve alarm mesaji kirpilinca sebep
+    // belirsiz kaliyordu.
+    //
+    // CO2 satiri eskiden HIC YOKTU: CO2 alarmi geldiginde kullanici ne olcum
+    // degerini ne de asilan limiti gorebiliyordu.
+    //
+    // Dikey butce: butonlar y=180'de basliyor (3 buton icin), bu alan 126..178.
+    _tft.fillRect(8, 126, SCR_W - 16, 52, bgColor);
     _tft.setTextFont(2);
     _tft.setTextDatum(MC_DATUM);
 
     char buf[40];
-    // Sicaklik (tek satir: "37.5 / 37.5 C")
-    _tft.setTextColor(COL_DIM, bgColor);
-    _tft.drawString("Sicaklik", SCR_W / 4, 138);
-    snprintf(buf, sizeof(buf), "%.1f/%.1f C", data.temperature, data.targetTemp);
-    _tft.setTextColor(COL_TEXT, bgColor);
-    _tft.drawString(buf, SCR_W / 4, 160);
 
-    // Nem (tek satir: "%55 / %50-%65")
+    // --- Satir 1: Sicaklik (sol) | Nem (sag) ---
     _tft.setTextColor(COL_DIM, bgColor);
-    _tft.drawString("Nem", 3 * SCR_W / 4, 138);
+    _tft.drawString("Sicaklik", SCR_W / 4, 132);
+    _tft.drawString("Nem", 3 * SCR_W / 4, 132);
+
+    snprintf(buf, sizeof(buf), "%.1f/%.1f", data.temperature, data.targetTemp);
+    _tft.setTextColor(tempStateColor(data.temperature, data.targetTemp), bgColor);
+    _tft.drawString(buf, SCR_W / 4, 150);
+
     snprintf(buf, sizeof(buf), "%%%.0f/%%%.0f-%%%.0f",
              data.humidity, data.targetHumLow, data.targetHumHigh);
-    _tft.setTextColor(COL_TEXT, bgColor);
-    _tft.drawString(buf, 3 * SCR_W / 4, 160);
+    _tft.setTextColor(humStateColor(data.humidity, data.targetHumLow,
+                                    data.targetHumHigh), bgColor);
+    _tft.drawString(buf, 3 * SCR_W / 4, 150);
+
+    // --- Satir 2: CO2 (tam genislik, olcum + asilan limit) ---
+    if (data.co2Valid) {
+        snprintf(buf, sizeof(buf), "CO2  %u / %u ppm",
+                 (unsigned)data.co2, (unsigned)data.co2High);
+        _tft.setTextColor(co2StateColor(data.co2, data.co2Valid, data.co2Low,
+                                        data.co2High, data.co2Critical), bgColor);
+    } else {
+        // Sensor yokken limit yazmak "olctuk, normaldi" izlenimi verirdi
+        snprintf(buf, sizeof(buf), "CO2  sensor yok");
+        _tft.setTextColor(COL_DIM, bgColor);
+    }
+    _tft.drawString(buf, SCR_W / 2, 168);
 
     _tft.setTextDatum(TL_DATUM);
 }
