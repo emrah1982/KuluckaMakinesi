@@ -840,7 +840,14 @@ void IncubationService::updateDisplay() {
     // Yumurta IR sicaklik: yerel MLX90614 oncelikli, WiFi servisi yedek
     uint8_t eggSrc = EGG_SRC_NONE;
     resolveEggTemp(dd.eggTemp, dd.eggTempValid, eggSrc);
+    dd.eggTempSource       = eggSrc;
     dd.eggSensorEnabled    = _eggTempSvc.isEnabled();
+
+    // I/O sagligi ve termal kacis - donanim arizasi gostergeleri
+    dd.relayOK             = RelayBoard::instance().isHealthy();
+    dd.muxOK               = I2CMux::isReady();
+    dd.muxRecoverCount     = I2CMux::getRecoverCount();
+    dd.thermalRunaway      = _safety.isRunaway();
     dd.eggDiscoveryStatus  = (uint8_t)_eggTempSvc.getDiscoveryStatus();
 
     // Temizlik modu bilgisi

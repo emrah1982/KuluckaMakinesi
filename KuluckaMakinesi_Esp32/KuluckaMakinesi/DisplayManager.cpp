@@ -71,6 +71,9 @@ static const int INF_Y = 88,  INF_H = 46;
 static const int OUT_Y = 136, OUT_H = 62;
 static const int SNS_Y = 200, SNS_H = 24;
 static const int ALM_Y = 226, ALM_H = 38;
+// Durum seridi: alarm kartinin altinda kalan bos alan (264..290 arasi
+// kullanilmiyordu). CO2, yumurta IR kaynagi ve I/O sagligi burada.
+static const int STA_Y = 266, STA_H = 22;
 
 // Kontrol sayfasi buton konumlari
 static const int BTN_W  = 112;
@@ -550,7 +553,11 @@ void DisplayManager::draw(const DisplayData &data) {
     // Aktifken her cizimden sonra ust kisima sari/turuncu yanip sonen bir
     // bant ciziyoruz: kullanici hangi sekmede olursa olsun modun aktif
     // oldugunu net gorur.
-    if (data.cleaningActive) {
+    // Termal kacis, temizlik modundan ONCELIKLIDIR: biri konfor bilgisi,
+    // digeri fiziksel mudahale gerektiren bir donanim arizasi.
+    if (data.thermalRunaway) {
+        drawRunawayBanner(data);
+    } else if (data.cleaningActive) {
         drawCleaningBanner(data);
     }
 
@@ -656,6 +663,7 @@ void DisplayManager::drawDashboard(const DisplayData &data) {
     drawOutputs(data);
     drawSensors(data);
     drawAlarm(data);
+    drawStatusStrip(data);   // CO2 + yumurta IR kaynagi + I/O sagligi
 }
 
 // ==================== SAYFA: GRAFIK (GAUGE TARZI - FLICKER-FREE) ====================
@@ -679,6 +687,32 @@ uint16_t DisplayManager::sensorStateColor(bool ok, bool present) const {
     if (ok)      return COL_GREEN;
     if (present) return COL_RED;
     return COL_DIM;
+}
+
+// ---------------------------------------------------------------------
+//  Olcum durum renkleri - Durum ve Olcum sekmelerinin ortak kaynagi
+// ---------------------------------------------------------------------
+uint16_t DisplayManager::tempStateColor(float temp, float target) const {
+    float d = temp - target;
+    if (fabs(d) <= 0.5f) return COL_GREEN;
+    return (d > 0) ? COL_RED : COL_BLUE;   // sicak kirmizi, soguk mavi
+}
+
+uint16_t DisplayManager::humStateColor(float hum, float low, float high) const {
+    if (hum >= low && hum <= high) return COL_GREEN;
+    return (hum > high) ? COL_CYAN : COL_ORANGE;   // nemli cyan, kuru turuncu
+}
+
+uint16_t DisplayManager::co2StateColor(uint16_t co2, bool valid,
+                                       uint16_t low, uint16_t high,
+                                       uint16_t critical) const {
+    // Sensor yoksa gri: 0 ppm'i YESIL "normal" gostermek "hava temiz"
+    // izlenimi verir, oysa hicbir olcum yoktur.
+    if (!valid)          return COL_DIM;
+    if (co2 >= critical) return COL_RED;
+    if (co2 >= high)     return COL_ORANGE;
+    if (co2 <= low)      return COL_GREEN;
+    return COL_YELLOW;
 }
 
 void DisplayManager::drawGauge(int cx, int cy, int r, float value, float minVal,
@@ -927,43 +961,11 @@ void DisplayManager::drawGraph(const DisplayData &data) {
     float co2Max = (float)data.co2Critical + 1000;  // Kritik + 1000 ppm
     float co2Target = (float)data.co2Low;           // Hedef = alt limit
     
-    // Sicaklik rengi
-    uint16_t tempColor;
-    float tempDiff = data.temperature - data.targetTemp;
-    if (fabs(tempDiff) <= 0.5f) {
-        tempColor = COL_GREEN;
-    } else if (tempDiff > 0) {
-        tempColor = COL_RED;
-    } else {
-        tempColor = COL_BLUE;
-    }
-    
-    // Nem rengi
-    uint16_t humColor;
-    if (data.humidity >= data.targetHumLow && data.humidity <= data.targetHumHigh) {
-        humColor = COL_GREEN;
-    } else if (data.humidity > data.targetHumHigh) {
-        humColor = COL_CYAN;
-    } else {
-        humColor = COL_ORANGE;
-    }
-    
-    // CO2 rengi (profil bazli dinamik limitler)
-    uint16_t co2Color;
-    if (!data.co2Valid) {
-        // Sensor yok/okunamiyor: gri goster. Aksi halde 0 ppm "co2Low'un
-        // altinda" sayilip YESIL cizilir ve "hava mukemmel" izlenimi verir;
-        // oysa hicbir olcum yoktur. Yanlis guven en tehlikeli gostergedir.
-        co2Color = COL_DIM;
-    } else if (data.co2 >= data.co2Critical) {
-        co2Color = COL_RED;      // Kritik
-    } else if (data.co2 >= data.co2High) {
-        co2Color = COL_ORANGE;   // Yuksek
-    } else if (data.co2 <= data.co2Low) {
-        co2Color = COL_GREEN;    // Normal
-    } else {
-        co2Color = COL_YELLOW;   // Uyari
-    }
+    // Durum renkleri - Durum sekmesiyle ORTAK kaynak (bkz. *StateColor)
+    uint16_t tempColor = tempStateColor(data.temperature, data.targetTemp);
+    uint16_t humColor  = humStateColor(data.humidity, data.targetHumLow, data.targetHumHigh);
+    uint16_t co2Color  = co2StateColor(data.co2, data.co2Valid,
+                                       data.co2Low, data.co2High, data.co2Critical);
     
     bool tempColorChanged = (tempColor != _prevTempColor);
     bool humColorChanged = (humColor != _prevHumColor);
@@ -1063,11 +1065,17 @@ void DisplayManager::drawGraph(const DisplayData &data) {
     _tft.setTextPadding(80);
     _tft.drawString("Yumurta Sicaklik:", cardPadX + cardMargin, INFO_Y + 46);
     
-    char eggTempStr[18];
+    char eggTempStr[26];
     if (data.eggTempValid) {
+        // Kaynak da yazilir: yerel MLX90614 mi, yoksa WiFi yedegine mi
+        // dusuldu? Yedege dusuldugunde olcum agdan geliyor demektir ve
+        // baglanti koparsa veri bayatlar - kullanici bunu bilmeli.
         // °C sembolu: extended ASCII 0xB0 (TFT_eSPI font 2/4 destekler)
-        snprintf(eggTempStr, sizeof(eggTempStr), "%.1f \xB0""C", data.eggTemp);
-        _tft.setTextColor(COL_YELLOW, COL_CARD);
+        snprintf(eggTempStr, sizeof(eggTempStr), "%.1f \xB0""C (%s)",
+                 data.eggTemp,
+                 (data.eggTempSource == 1) ? "yerel" : "uzak");
+        _tft.setTextColor((data.eggTempSource == 1) ? COL_YELLOW : COL_CYAN,
+                          COL_CARD);
     } else {
         snprintf(eggTempStr, sizeof(eggTempStr), "Baglanti yok");
         _tft.setTextColor(COL_DIM, COL_CARD);
@@ -1132,7 +1140,10 @@ void DisplayManager::drawGauges(const DisplayData &data) {
     _tft.setTextFont(4);
     _tft.setTextSize(1);
     _tft.setTextDatum(TC_DATUM);
-    _tft.setTextColor(COL_TEXT, COL_CARD);
+    // Deger, Olcum sekmesiyle AYNI durum rengini kullanir. Eskiden burada
+    // hep beyaz yaziliyordu: ayni sicaklik bir sekmede kirmizi, digerinde
+    // notr gorunuyordu ve Durum sekmesi sapmayi hic belli etmiyordu.
+    _tft.setTextColor(tempStateColor(data.temperature, data.targetTemp), COL_CARD);
     _tft.setTextPadding(_tft.textWidth("88.8"));
     char ts[8];
     dtostrf(data.temperature, 4, 1, ts);
@@ -1158,7 +1169,8 @@ void DisplayManager::drawGauges(const DisplayData &data) {
 
     _tft.setTextFont(4);
     _tft.setTextDatum(TC_DATUM);
-    _tft.setTextColor(COL_TEXT, COL_CARD);
+    _tft.setTextColor(humStateColor(data.humidity, data.targetHumLow,
+                                    data.targetHumHigh), COL_CARD);
     _tft.setTextPadding(_tft.textWidth("88.8"));
     char hs[8];
     dtostrf(data.humidity, 4, 1, hs);
@@ -1334,6 +1346,115 @@ void DisplayManager::drawSensors(const DisplayData &data) {
     _tft.setTextPadding(sw);
     _tft.drawString(ut, cx3, SNS_Y + 13);
     _tft.setTextPadding(0);
+}
+
+// ---------------------------------------------------------------------
+//  Durum seridi (Durum sekmesi alti)
+//
+//  Buradaki uc bilgi daha once TFT'de HIC yoktu:
+//    CO2       - yalnizca Olcum sekmesinde kadran olarak vardi
+//    IR kaynak - yerel MLX90614 mi uzak WiFi yedegi mi, sadece web'de vardi
+//    I/O       - role/MUX sagligi, sadece durum JSON'unda vardi
+//  Ucu de gecerli/gecersiz ayrimini renk ile tasir; olcum yokken yesil
+//  gostermek "her sey yolunda" izlenimi verecegi icin gri kullanilir.
+// ---------------------------------------------------------------------
+void DisplayManager::drawStatusStrip(const DisplayData &data) {
+    if (_bgDraw) {
+        _tft.fillRoundRect(2, STA_Y, SCR_W - 4, STA_H, 4, COL_CARD);
+    }
+
+    const int ty = STA_Y + STA_H / 2;
+    _tft.setTextFont(1);
+    _tft.setTextSize(1);
+    _tft.setTextDatum(ML_DATUM);
+
+    // ---- SOL: CO2 ----  "CO2 1250/3000"
+    _tft.setTextColor(COL_DIM, COL_CARD);
+    _tft.setTextPadding(0);
+    _tft.drawString("CO2", 6, ty);
+
+    char cbuf[10];
+    if (data.co2Valid) snprintf(cbuf, sizeof(cbuf), "%u", (unsigned)data.co2);
+    else               snprintf(cbuf, sizeof(cbuf), "--");
+    _tft.setTextColor(co2StateColor(data.co2, data.co2Valid, data.co2Low,
+                                    data.co2High, data.co2Critical), COL_CARD);
+    _tft.setTextPadding(28);
+    _tft.drawString(cbuf, 26, ty);
+
+    // Limit kirmizi (Durum sekmesindeki diger hedeflerle ayni dil)
+    char lbuf[10];
+    snprintf(lbuf, sizeof(lbuf), "/%u", (unsigned)data.co2High);
+    _tft.setTextColor(COL_RED, COL_CARD);
+    _tft.setTextPadding(30);
+    _tft.drawString(lbuf, 56, ty);
+
+    // ---- ORTA: Yumurta IR + kaynak ----  "IR 37.6 Y"
+    _tft.setTextColor(COL_DIM, COL_CARD);
+    _tft.setTextPadding(0);
+    _tft.drawString("IR", 100, ty);
+
+    char ibuf[14];
+    uint16_t irCol;
+    if (!data.eggTempValid) {
+        snprintf(ibuf, sizeof(ibuf), "--");
+        irCol = COL_DIM;
+    } else {
+        // Y = yerel MLX90614 (birincil), U = uzak WiFi servisi (yedek).
+        // Kaynak onemli: yedege dusulduyse olcum agdan geliyor demektir.
+        char tag = (data.eggTempSource == 1) ? 'Y' : 'U';
+        snprintf(ibuf, sizeof(ibuf), "%.1f %c", data.eggTemp, tag);
+        irCol = (data.eggTempSource == 1) ? COL_GREEN : COL_CYAN;
+    }
+    _tft.setTextColor(irCol, COL_CARD);
+    _tft.setTextPadding(48);
+    _tft.drawString(ibuf, 116, ty);
+
+    // ---- SAG: I/O sagligi ----
+    _tft.setTextDatum(MR_DATUM);
+    const char* ioTxt;
+    uint16_t    ioCol;
+    if (!data.muxOK) {
+        ioTxt = "I/O MUX!";   ioCol = COL_RED;
+    } else if (!data.relayOK) {
+        ioTxt = "I/O ROLE!";  ioCol = COL_RED;
+    } else if (data.muxRecoverCount > 0) {
+        // Bus toparlandi ama sorun yasandi: sessizce gecmemeli
+        ioTxt = "I/O ~";      ioCol = COL_ORANGE;
+    } else {
+        ioTxt = "I/O OK";     ioCol = COL_GREEN;
+    }
+    _tft.setTextColor(ioCol, COL_CARD);
+    _tft.setTextPadding(60);
+    _tft.drawString(ioTxt, SCR_W - 6, ty);
+
+    _tft.setTextPadding(0);
+    _tft.setTextDatum(TL_DATUM);
+}
+
+// ---------------------------------------------------------------------
+//  Termal kacis banneri - tum sekmelerin ustunde
+//
+//  Sistem "kapattim" dedigi halde sicaklik dusmuyorsa role kontagi
+//  yapismis olabilir. Yazilimin yapabilecegi bir sey kalmamistir; tek
+//  cozum isitici beslemesini elle kesmektir. Bu yuzden mesaj hangi
+//  sekmede olunursa olunsun gorunur.
+// ---------------------------------------------------------------------
+void DisplayManager::drawRunawayBanner(const DisplayData &data) {
+    (void)data;
+    bool blink = ((millis() / 400) % 2) == 0;
+    uint16_t bg = blink ? COL_RED : 0x8000;   // kirmizi <-> koyu kirmizi
+
+    const int bh = 16;
+    _tft.fillRect(0, 0, SCR_W, bh, bg);
+    _tft.drawFastHLine(0, bh, SCR_W, COL_RED);
+
+    _tft.setTextFont(1);
+    _tft.setTextSize(1);
+    _tft.setTextDatum(MC_DATUM);
+    _tft.setTextColor(COL_TEXT, bg);
+    _tft.setTextPadding(0);
+    _tft.drawString("!! ISITICI BESLEMESINI KES !!", SCR_W / 2, bh / 2);
+    _tft.setTextDatum(TL_DATUM);
 }
 
 void DisplayManager::drawAlarm(const DisplayData &data) {

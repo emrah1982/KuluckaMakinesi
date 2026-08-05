@@ -114,9 +114,18 @@ struct DisplayData {
     float* humHistory;       // Nem gecmisi dizisi
     uint16_t historyCount;   // Dizideki eleman sayisi
     uint16_t historyMax;     // Max eleman (60)
-    // Yumurta IR sicaklik (EggTempService)
+    // Yumurta IR sicaklik (yerel MLX90614 oncelikli, WiFi servisi yedek)
     float    eggTemp;          // Son okunan yumurta yuzey sicakligi (°C)
     bool     eggTempValid;     // true = gecerli veri var, false = baglanti yok
+    uint8_t  eggTempSource;    // 0=yok, 1=yerel MLX90614, 2=uzak WiFi servisi
+
+    // ---- I/O sagligi ve termal kacis ----
+    // Bunlar donanim arizasidir, ortam kosulu degil. Ekranda gorunmezlerse
+    // kullanici cikislarin kontrol edilemedigini hic ogrenemez.
+    bool     relayOK;          // Role kartina yazilabiliyor mu
+    bool     muxOK;            // I2C multiplexer ayakta mi
+    uint32_t muxRecoverCount;  // Acilistan beri bus kurtarma sayisi (tani)
+    bool     thermalRunaway;   // Kapatildi ama sicaklik dusmuyor -> FIZIKSEL MUDAHALE
     bool     eggSensorEnabled; // Servis aktif/pasif (kullanici toggle)
     uint8_t  eggDiscoveryStatus; // 0=NONE, 1=RUNNING, 2=OK, 3=FAILED
     // Temizlik / bakim modu
@@ -234,6 +243,16 @@ private:
         DEV_BAND        // bandLo..bandHi'a gore -> aralik hedefli (nem, CO2)
     };
 
+    // Durum sekmesi alt seridi: CO2 + yumurta IR kaynagi + I/O sagligi.
+    // Bu uc bilgi daha once TFT'de hic yoktu (CO2 sadece Olcum sekmesinde,
+    // digerleri yalnizca durum JSON'unda gorunuyordu).
+    void drawStatusStrip(const DisplayData &data);
+
+    // Termal kacis banneri: tum sekmelerin ustunde, yanip sonen kirmizi.
+    // Bu durum yazilimin cozemedigi bir donanim arizasidir; kullanicinin
+    // hangi sekmede oldugundan bagimsiz olarak gormesi gerekir.
+    void drawRunawayBanner(const DisplayData &data);
+
     void drawGauge(int cx, int cy, int r, float value, float minVal,
                    float maxVal, float target, uint16_t color,
                    const char* label, const char* unit,
@@ -245,6 +264,15 @@ private:
     // kullaniciyi yaniltiyordu. Iki ekran da artik bu ikiliyi cagirir.
     static const char* sensorStateText(bool ok, bool present);
     uint16_t           sensorStateColor(bool ok, bool present) const;
+
+    // Olcum durum renkleri - TEK KAYNAK.
+    // Durum ve Olcum sekmeleri ayni olcumu gosteriyor; "normal/yuksek/dusuk"
+    // karari iki yerde ayri hesaplanirsa iki ekran farkli renk gosterebilir.
+    // Ikisi de bu fonksiyonlari cagirir.
+    uint16_t tempStateColor(float temp, float target) const;
+    uint16_t humStateColor(float hum, float low, float high) const;
+    uint16_t co2StateColor(uint16_t co2, bool valid,
+                           uint16_t low, uint16_t high, uint16_t critical) const;
 
     bool touchInRect(uint16_t tx, uint16_t ty,
                      int rx, int ry, int rw, int rh);
