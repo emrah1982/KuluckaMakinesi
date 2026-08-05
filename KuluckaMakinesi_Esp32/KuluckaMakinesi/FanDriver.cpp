@@ -132,7 +132,16 @@ void FanDriver::setSoftBehavior(bool enabled) {
 }
 
 void FanDriver::writePWM(uint8_t v) {
+#if FAN_SPEED_CONTROL
+    // IO18 -> ENA bagli: hiz PWM ile ayarlanir
     ledcWrite(FAN_PIN, v);
+#else
+    // IO18 -> ENA BAGLI DEGIL. ENA jumper'i takili oldugu icin surucu
+    // surekli aktif; hiz P7 ile ayarlanamaz (I2C pini, 25 kHz uretilemez).
+    // Pini yine de tanimli tutuyoruz ki bosta salinmasin, ama degeri
+    // yalnizca ac/kapa anlamina gelir.
+    ledcWrite(FAN_PIN, v > 0 ? 255 : 0);
+#endif
 
     // L298N IN1 (PCF8574 P7). ENA'daki PWM tek basina yetmez: IN1 LOW iken
     // motor donmez. Fan gercekten dursun diye kapanista IN1 de LOW yapilir,

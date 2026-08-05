@@ -140,11 +140,29 @@
 #define RELAY_BIT_TURNER_POWER  2   // P2 - Yumurta çevirme motor güç rölesi
 #define RELAY_BIT_TURNER_DIR    3   // P3 - Yumurta çevirme motor yön rölesi
 // Fan, L298N motor surucu uzerinden calisir:
-//   PCF8574 P7  -> L298N IN1   (yon/enable mantik girisi)
-//   ESP32 IO18  -> L298N ENA   (25 kHz PWM, hiz)
+//   PCF8574 P7  -> L298N IN1   (enable mantik girisi)
 //   L298N IN2   -> GND         (tek yon; BOSTA BIRAKILMAMALI)
-// IN1 LOW iken motor donmez, PWM ne olursa olsun.
+//   ESP32 IO18  -> L298N ENA   (25 kHz PWM, hiz) -- OPSIYONEL, asagiya bak
+// IN1 LOW iken motor donmez, ENA ne olursa olsun.
 #define FAN_BIT_IN1             7   // P7 - L298N IN1
+
+// ---- FAN HIZ KONTROLU ----
+// 1 = IO18 -> ENA kablosu VAR. Degisken hiz calisir; L298N kartindaki ENA
+//     jumper'i CIKARILMALIDIR, aksi halde ENA surekli 5V'ta kalir ve PWM
+//     etkisiz olur.
+// 0 = IO18 -> ENA kablosu YOK. ENA jumper'i takili kalir (surekli aktif),
+//     fan yalnizca P7 ile AC/KAPA edilir ve daima tam hizda doner.
+//
+// NEDEN P7 ILE HIZ AYARI YAPILAMAZ: P7 bir I2C genisletici pinidir; her
+// seviye degisimi bir I2C islemi demektir (100 kHz'de ~1 ms). Ulasilabilecek
+// frekans birkac yuz Hz mertebesinde kalir, fan icin gereken 25 kHz'in cok
+// altinda. Ustelik ayni hat RTC/sensor/roleleri de tasidigi icin bus tikanir.
+// Hiz kontrolu ancak ESP32'nin donanim PWM'i (IO18) ile mumkundur.
+//
+// 0 secildiginde FanController'in sicakliga bagli hiz egrisi islevsiz kalir;
+// fan calistigi surece tam hizda doner. Kulucka icin kabul edilebilir bir
+// calisma bicimidir (bircok ticari kulucka fani sabit hizda surekli doner).
+#define FAN_SPEED_CONTROL       1
 
 // GUVENLI CIKIS DURUMU (bit 7 = 0!)
 //   bit 0-3 roleler : 1 = kapali (Active LOW)

@@ -85,9 +85,31 @@ Iki ayri sinyal gerekir:
 
 | Sinyal | Kaynak | L298N ucu | Islev |
 |--------|--------|-----------|-------|
-| Hiz | ESP32 **IO18** | **ENA** | 25 kHz PWM (0-255) |
-| Enable/Yon | PCF8574 **P7** | **IN1** | Mantik girisi |
+| Enable | PCF8574 **P7** | **IN1** | Ac/kapa (ZORUNLU) |
 | Yon (sabit) | — | **IN2 -> GND** | Tek yon calisma |
+| Hiz | ESP32 **IO18** | **ENA** | 25 kHz PWM (OPSIYONEL) |
+
+**Iki kurulum secenegi var** — `Config.h` icindeki `FAN_SPEED_CONTROL`
+buna gore ayarlanmalidir:
+
+| | Sadece P7 (`FAN_SPEED_CONTROL 0`) | P7 + IO18 (`= 1`) |
+|---|---|---|
+| Kablo sayisi | 1 | 2 |
+| ENA jumper'i | **Takili kalir** | **Cikarilir** |
+| Fan hizi | Tek hiz (tam) | 0-255 arasi degisken |
+| Sicakliga bagli hiz egrisi | Islevsiz | Calisir |
+
+> **P7 ile hiz ayari YAPILAMAZ.** P7 bir I2C genisletici pinidir; her
+> seviye degisimi bir I2C islemi demektir (100 kHz'de ~1 ms). Ulasilabilecek
+> frekans birkac yuz Hz mertebesinde kalir, fan icin gereken 25 kHz'in cok
+> altindadir. Ustelik ayni hat RTC, sicaklik sensorleri ve roleleri de
+> tasidigi icin bus tikanir. Hiz kontrolu ancak ESP32'nin donanim PWM
+> cikisi (IO18) ile mumkundur.
+
+`FAN_SPEED_CONTROL 0` secildiginde `FanController`'in sicakliga bagli hiz
+egrisi islevsiz kalir; fan calistigi surece tam hizda doner. Kulucka icin
+kabul edilebilir bir calisma bicimidir — bircok ticari kulucka fani sabit
+hizda surekli doner — ancak sicaklik kontrolunun ince ayari kaybedilir.
 
 > **IN2 mutlaka GND'ye baglanmalidir.** Bosta birakilirsa L298N'in donus
 > yonu belirsiz olur; motor donmeyebilir veya ters donebilir.
