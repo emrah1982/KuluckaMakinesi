@@ -32,7 +32,14 @@ public:
     void beepOnce(uint16_t freqHz, uint16_t durationMs);
     void startAlarmPattern();               // Susturulana kadar tekrar
     void stop();                            // Tum sesi kes
+    // DIKKAT: isPlaying() yalnizca "su an ton uretiliyor mu" der. Alarm
+    // deseninin sessiz araliklarinda (200 ms OFF, 1500 ms bekleme) false
+    // doner. "Alarm calmaya devam ediyor mu" sorusu icin bunu KULLANMAYIN.
     bool isPlaying() const;
+
+    // Alarm deseni surmekte mi. Sessiz araliklarda da true kalir; sesin
+    // yeniden baslatilip baslatilmayacagina bununla karar verilir.
+    bool isAlarmPatternActive() const { return _mode == SPK_ALARM_PATTERN; }
 
 private:
     SpeakerMode  _mode;

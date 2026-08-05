@@ -60,6 +60,31 @@ void AlarmService::check(float temperature, float humidity, bool sensorOK,
     }
 }
 
+// ---------------------------------------------------------------------
+//  Hoparlor durumunu alarm durumuyla esitle
+//
+//  Ses artik DURUM tabanli: "alarm aktif ve susturulmamissa hoparlor
+//  calar" degismezi her dongude saglanir. Boylece susturma suresi
+//  dolar dolmaz ses geri gelir; triggerAlarm'in tekrar cagrilmasini
+//  beklemek gerekmez.
+//
+//  isPlaying() KULLANILMAZ: alarm deseninin sessiz araliklarinda (200 ms
+//  OFF, 1500 ms bekleme) false doner ve desen surekli bastan baslardi.
+//  isAlarmPatternActive() bu araliklarda da true kalir.
+// ---------------------------------------------------------------------
+void AlarmService::update() {
+    if (!_speaker) return;
+
+    bool shouldSound = _alarmActive && !isMuted();
+
+    if (shouldSound && !_speaker->isAlarmPatternActive()) {
+        _speaker->startAlarmPattern();
+    } else if (!shouldSound && _speaker->isAlarmPatternActive()) {
+        // Alarm temizlendi veya susturuldu ama ses surüyorsa kes
+        _speaker->stop();
+    }
+}
+
 void AlarmService::triggerAlarm(AlarmType type, const String &message) {
     bool newType = (_activeAlarm != type);   // farkli tipte alarm geldiyse mute kalksin
     _activeAlarm = type;

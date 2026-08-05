@@ -258,6 +258,13 @@ void IncubationService::update() {
     // Fan PWM ramp/kickstart guncellemesi (her loop'ta cagrilmali)
     _fan.update();
 
+    // Hoparlor durum makinesi - HER LOOP'TA, dongu araligi kapisindan ONCE.
+    // Alarm deseni 200 ms ON / 200 ms OFF adimlarindan olusuyor; asagidaki
+    // kapi LOOP_INTERVAL (2000 ms) oldugu icin update() yalnizca 2 sn'de bir
+    // calisiyordu ve desen taninmaz hale geliyordu. Fan gibi bu da hizli
+    // yolda calismali.
+    _speaker.update();
+
     // Grafik history guncelle (her 5 saniyede)
     updateHistory();
 
@@ -270,6 +277,12 @@ void IncubationService::update() {
 
     // Yerel yumurta IR sensoru (MLX90614, MUX CH4) - kendi okuma araligi var
     _eggIR.update();
+
+    // Alarm sesi durum senkronu - TUM modlarda, dal ayrimindan ONCE.
+    // Susturma suresi dolar dolmaz ses geri gelsin diye burada; asagidaki
+    // durum dallarindan birine konsaydi (temizlik, acil, role testi) o
+    // modlarda calismazdi.
+    _alarm.update();
 
     // CO2 sensoru (SCD30, MUX CH3). Duraklatma dahil tum modlarda okunur ki
     // havalandirma sorunu kulucka duraklatilmisken de fark edilsin.

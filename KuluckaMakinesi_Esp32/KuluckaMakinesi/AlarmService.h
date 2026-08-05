@@ -58,6 +58,16 @@ public:
                       float humLow, float humHigh,
                       uint16_t co2 = 0, uint16_t co2High = 0, uint16_t co2Critical = 0);
 
+    // Her dongude cagrilir. Hoparlorun DURUMUNU alarm durumuyla esitler.
+    //
+    // Neden gerekli: startAlarmPattern() yalnizca triggerAlarm() icinde
+    // cagriliyordu, yani ses OLAY tabanliydi. Susturma suresi dolunca
+    // modal aninda geri geliyordu (shouldAutoShowModal DURUM tabanli) ama
+    // ses ancak bir sonraki triggerAlarm cagrisinda basliyordu; o da
+    // ALARM_COOLDOWN (60 sn) ile gecikiyordu. Tekrar tetiklenmeyen alarm
+    // tiplerinde (candling, faz gecisi) ses hic gelmiyordu.
+    void update();
+
     void triggerAlarm(AlarmType type, const String &message);
     void clearAlarm(AlarmType type);
     void clearAll();
