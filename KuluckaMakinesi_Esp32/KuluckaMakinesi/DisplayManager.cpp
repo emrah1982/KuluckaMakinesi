@@ -1706,47 +1706,74 @@ void DisplayManager::drawProfile(const DisplayData &data) {
         _tft.drawRoundRect(cardMargin, 2, cardW, hdrH, 6, 0x3186);
     }
 
-    // Profil adi (buyuk, sol)
+    // BASLIK YERLESIMI - her eleman kendi satir bandinda.
+    // Eski duzende profil adi (Font 4, y 20..46, sol) ile evre adi
+    // (Font 2, y 24..40, saga hizali) AYNI bantta idi. Uzun kombinasyonlarda
+    // ("Ipek Bocegi" + "Erken Gelisim") yatayda cakisip ust uste biniyordu.
+    // Yeni duzen (Font 2 = 16 px, Font 4 = 26 px):
+    //   satir 1  y  2..18 : PROFIL (sol)      | Gun x/y (sag)
+    //   satir 2  y 19..45 : profil adi (Font 4, TAM GENISLIK, komsusu yok)
+    //   satir 3  y 46..62 : evre adi (sol)    | CO2 limitleri (sag, Font 1)
+    const int lx0 = cardPadX + cardMargin;              // sol icerik kenari  = 10
+    const int rx0 = SCR_W - cardMargin - cardPadX;      // sag icerik kenari  = 230
+
+    // --- Satir 1 ---
     _tft.setTextFont(2);
     _tft.setTextSize(1);
     _tft.setTextDatum(TL_DATUM);
     _tft.setTextColor(COL_CYAN, COL_CARD);
-    _tft.drawString("PROFIL", cardPadX + cardMargin, 4);
-    
-    const char* pn = data.profileName ? data.profileName : "---";
-    _tft.setTextFont(4);  // Buyuk font
-    _tft.setTextColor(COL_TEXT, COL_CARD);
-    _tft.setTextPadding(140);
-    _tft.drawString(pn, cardPadX + cardMargin, 20);
-    _tft.setTextPadding(0);
+    _tft.drawString("PROFIL", lx0, 2);
 
-    // Gun bilgisi (sag ust)
-    _tft.setTextFont(2);
     _tft.setTextDatum(TR_DATUM);
     _tft.setTextColor(COL_ORANGE, COL_CARD);
     char dayInfo[20];
     snprintf(dayInfo, sizeof(dayInfo), "Gun %d/%d", data.currentDay, data.totalDays);
-    _tft.drawString(dayInfo, SCR_W - cardMargin - cardPadX, 4);
-    
-    // Aktif evre (sag orta)
-    _tft.setTextColor(COL_GREEN, COL_CARD);
-    _tft.drawString(data.phaseName ? data.phaseName : "---", SCR_W - cardMargin - cardPadX, 24);
-    
-    // CO2 limitleri (alt satir - profil bazli dinamik)
-    _tft.setTextFont(2);
+    _tft.setTextPadding(90);
+    _tft.drawString(dayInfo, rx0, 2);
+    _tft.setTextPadding(0);
+
+    // --- Satir 2: profil adi, satirin tamami onun ---
+    const char* pn = data.profileName ? data.profileName : "---";
+    _tft.setTextFont(4);
     _tft.setTextDatum(TL_DATUM);
-    _tft.setTextColor(COL_DIM, COL_CARD);
-    _tft.drawString("CO2:", cardPadX + cardMargin, 46);
+    _tft.setTextColor(COL_TEXT, COL_CARD);
+    _tft.setTextPadding(cardW - cardPadX * 2);
+    _tft.drawString(pn, lx0, 19);
+    _tft.setTextPadding(0);
+
+    // --- Satir 3 sol: aktif evre ---
+    // 12 karakterle sinirli: Font 2'de ~96 px eder, x 10..106 arasinda kalir
+    // ve sagdaki CO2 grubuna (128'den baslar) hicbir kosulda degmez.
+    char phBuf[16];
+    const char* phSrc = data.phaseName ? data.phaseName : "---";
+    snprintf(phBuf, sizeof(phBuf), "%.12s", phSrc);
+    _tft.setTextFont(2);
     _tft.setTextColor(COL_GREEN, COL_CARD);
-    char co2Str[32];
-    snprintf(co2Str, sizeof(co2Str), "<%u", data.co2Low);
-    _tft.drawString(co2Str, cardPadX + cardMargin + 38, 46);
-    _tft.setTextColor(COL_YELLOW, COL_CARD);
-    snprintf(co2Str, sizeof(co2Str), "<%u", data.co2High);
-    _tft.drawString(co2Str, cardPadX + cardMargin + 90, 46);
+    _tft.setTextPadding(104);
+    _tft.drawString(phBuf, lx0, 46);
+    _tft.setTextPadding(0);
+
+    // --- Satir 3 sag: CO2 limitleri (Font 1, sagdan sola yerlesim) ---
+    // Renkler siddeti tasir: yesil = normal ust siniri, sari = yuksek,
+    // kirmizi = kritik. Font 1 (8 px) kullanildi ki Font 2'lik evre adiyla
+    // ayni satirda rahat sigsin.
+    _tft.setTextFont(1);
+    _tft.setTextDatum(TR_DATUM);
+    char co2Str[12];
     _tft.setTextColor(COL_RED, COL_CARD);
-    snprintf(co2Str, sizeof(co2Str), ">%u", data.co2Critical);
-    _tft.drawString(co2Str, cardPadX + cardMargin + 142, 46);
+    snprintf(co2Str, sizeof(co2Str), "%u", data.co2Critical);
+    _tft.setTextPadding(30);
+    _tft.drawString(co2Str, rx0, 50);
+    _tft.setTextColor(COL_YELLOW, COL_CARD);
+    snprintf(co2Str, sizeof(co2Str), "%u", data.co2High);
+    _tft.drawString(co2Str, rx0 - 32, 50);
+    _tft.setTextColor(COL_GREEN, COL_CARD);
+    snprintf(co2Str, sizeof(co2Str), "%u", data.co2Low);
+    _tft.drawString(co2Str, rx0 - 64, 50);
+    _tft.setTextColor(COL_DIM, COL_CARD);
+    _tft.setTextPadding(0);
+    _tft.drawString("CO2", rx0 - 96, 50);
+    _tft.setTextFont(2);
     _tft.setTextDatum(TL_DATUM);
 
     // Evre listesi
@@ -1762,15 +1789,37 @@ void DisplayManager::drawProfile(const DisplayData &data) {
     // ========== EVRE KARTLARI ==========
     // Faz sayisina gore kart yuksekligi dinamik (4 faz icin kompakt)
     int totalCards = prof->phaseCount;
-    const int phH = (totalCards >= 4) ? 44 : 56;
-    const int gap = (totalCards >= 4) ? 2 : 3;
-    // Faz icerigi koordinatlari da dinamik (kompakt mod)
-    const int phRow1Y = (totalCards >= 4) ? 3  : 4;    // Baslik + gun araligi
-    const int phRow2Y = (totalCards >= 4) ? 18 : 26;   // Sicaklik + nem
-    const int phRow3Y = (totalCards >= 4) ? 30 : 40;   // Cevirme
+
+    // YERLESIM HESABI - uc satir da Font 2 kullanir, Font 2 yuksekligi 16 px.
+    // Uc satir icin en az 48 px gerekir; eski degerler bunu saglamiyordu ve
+    // yazilar ust uste biniyordu:
+    //   kompakt: kart 44 px, satirlar +3/+18/+30
+    //            -> satir2 satir1'e 1 px, satir3 satir2'ye 4 px biniyordu,
+    //               ustelik satir3 (30+16=46) 44 px'lik karti tasiyordu.
+    //   normal : kart 56 px, satirlar +4/+26/+40
+    //            -> satir3 satir2'ye 2 px biniyordu.
+    //
+    // Kompakt kart 44 -> 52 px yapildi. Gorunur kart sayisi DEGISMEDI:
+    //   maxVisible = (290 - 68) / (52 + 2) = 4   (eskiden 222/46 = 4)
+    const int phH = (totalCards >= 4) ? 52 : 56;
+    const int gap = (totalCards >= 4) ? 2  : 3;
+    // Satir baslangiclari: her satir 16 px, aralarinda 1-3 px nefes payi
+    const int phRow1Y = (totalCards >= 4) ? 2  : 4;    // Baslik + gun araligi
+    const int phRow2Y = (totalCards >= 4) ? 19 : 23;   // Sicaklik + nem
+    const int phRow3Y = (totalCards >= 4) ? 35 : 40;   // Cevirme + sogutma
 
     int startY = hdrH + 6;
-    int maxVisible = (PAGE_H - startY) / (phH + gap);
+
+    // Dol kontrolu karti icin alt rezerv.
+    // Dikey butce dar: 290 px sayfada baslik 68'e kadar gidiyor. Kart
+    // yuksekligi 44 -> 52 cikinca 4 kart + dol karti artik sigmiyordu ve
+    // dol karti "candY + cardH < PAGE_H" korumasina takilip HIC cizilmiyordu.
+    // Bilgi kaybetmemek icin gorunur kart sayisini bir azaltiyoruz; kalan
+    // fazlara zaten kaydirma ile ulasiliyor.
+    const int candReserve = (data.candlingLockdownDay > 0 && totalCards >= 4) ? 36 : 0;
+
+    int maxVisible = (PAGE_H - startY - candReserve) / (phH + gap);
+    if (maxVisible < 1) maxVisible = 1;
 
     int maxScroll = totalCards - maxVisible;
     if (maxScroll < 0) maxScroll = 0;
@@ -1849,16 +1898,21 @@ void DisplayManager::drawProfile(const DisplayData &data) {
         }
     }
 
-    // Scroll gostergesi
+    // Scroll gostergesi - BASLIK KARTININ 1. SATIRINDA.
+    // Eskiden sayfanin en altinda (PAGE_H-12, yani y 270..286) ciziliyordu.
+    // Kart yuksekligi 52 px'e cikinca 4. kart 282'ye kadar uzuyor ve gosterge
+    // onun uzerine biniyordu. Baslik satirinda "PROFIL" (x 10..58) ile
+    // "Gun x/y" (x ~158..230) arasi bostur; gosterge oraya alindi.
     if (maxScroll > 0) {
-        _tft.setTextFont(2);
+        _tft.setTextFont(1);
         _tft.setTextDatum(MC_DATUM);
-        _tft.setTextColor(COL_DIM, COL_BG);
-        _tft.setTextPadding(60);
+        _tft.setTextColor(COL_DIM, COL_CARD);
+        _tft.setTextPadding(40);
         char sc[12];
         snprintf(sc, sizeof(sc), "%d/%d", _scrollOffset + 1, maxScroll + 1);
-        _tft.drawString(sc, SCR_W / 2, PAGE_H - 12);
+        _tft.drawString(sc, 108, 10);
         _tft.setTextPadding(0);
+        _tft.setTextFont(2);
         _tft.setTextDatum(TL_DATUM);
     }
 
