@@ -1840,10 +1840,11 @@ void DisplayManager::drawRelayTest(const DisplayData &data) {
     drawButton(rx2, r2y, bw2, bh, "P3 CEV.YON",
                data.relayTestOn[3] ? COL_PURPLE : 0x3186, COL_TEXT);
 
-    // Fan - role degil, PWM
+    // Fan - role degil. Iki sinyal birden: P7 (L298N IN1) + IO18 PWM (ENA).
+    // Etikette ikisi de yazili ki test sirasinda hangi hattin denendigi belli olsun.
     const int fy = r2y + bh + 4;
-    char fbuf[20];
-    snprintf(fbuf, sizeof(fbuf), "FAN PWM %u", (unsigned)data.relayTestFan);
+    char fbuf[24];
+    snprintf(fbuf, sizeof(fbuf), "FAN P7+PWM %u", (unsigned)data.relayTestFan);
     drawButton(bx, fy, mw - 8, bh, fbuf,
                data.relayTestFan > 0 ? COL_CYAN : 0x3186, COL_TEXT);
 

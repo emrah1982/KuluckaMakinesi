@@ -55,7 +55,12 @@ private:
     unsigned long _kickstartEndMs;  // Kickstart bitis zamani
     unsigned long _lastRampMs;  // Son ramp adimi zamani
 
-    void writePWM(uint8_t v);   // Direkt PWM cikisi (ledcWrite)
+    // L298N IN1 (PCF8574 P7) son yazilan durum.
+    // PWM her ramp adiminda degisir ama IN1 yalnizca ac/kapa gecisinde
+    // yazilmalidir; her adimda I2C'ye yazmak bus'i gereksiz mesgul eder.
+    bool _in1State;
+
+    void writePWM(uint8_t v);   // PWM cikisi (ledcWrite) + L298N IN1 yonetimi
 };
 
 #endif // FAN_DRIVER_H

@@ -69,12 +69,38 @@ ESP32 (IO32/IO25)
        +-- CH2: SHT30 (0x44) - Ikincil sensor (yedek + fuzyon)
        +-- CH3: SCD30 (0x61) - CO2 sensoru
        +-- CH4: MLX90614ESF-BCC (0x5A) - Yumurta IR sicaklik (yerel, birincil)
-       +-- CH7: PCF8574 (0x20) - 4'lu role karti
+       +-- CH7: PCF8574 (0x20) - 4'lu role karti + yardimci cikislar
                  P0 = Isitici rolesi
                  P1 = Nemlendirici rolesi
                  P2 = Yumurta cevirme motor guc
                  P3 = Yumurta cevirme motor yon
+                 P4-P6 = Step motor (yalnizca TURNER_TYPE=1)
+                 P7 = Fan L298N IN1
 ```
+
+### Fan Baglantisi (L298N)
+
+Fan **role uzerinden degil**, L298N motor surucu karti uzerinden calisir.
+Iki ayri sinyal gerekir:
+
+| Sinyal | Kaynak | L298N ucu | Islev |
+|--------|--------|-----------|-------|
+| Hiz | ESP32 **IO18** | **ENA** | 25 kHz PWM (0-255) |
+| Enable/Yon | PCF8574 **P7** | **IN1** | Mantik girisi |
+| Yon (sabit) | — | **IN2 -> GND** | Tek yon calisma |
+
+> **IN2 mutlaka GND'ye baglanmalidir.** Bosta birakilirsa L298N'in donus
+> yonu belirsiz olur; motor donmeyebilir veya ters donebilir.
+
+**IN1 LOW iken motor donmez, PWM ne olursa olsun.** Firmware fan
+kapatilirken IN1'i de LOW yapar; boylece durdurma tek bir sinyale bagli
+kalmaz. IN1 yalnizca ac/kapa gecisinde yazilir — PWM her ramp adiminda
+degistigi icin her degisimde I2C'ye yazmak bus'i gereksiz mesgul ederdi.
+
+> **Not:** PCF8574 cikislari quasi-bidirectional'dir; HIGH durumu zayif bir
+> dahili pull-up ile saglanir (~100 uA). L298N mantik girisleri yuksek
+> empedansli oldugu icin bu yeterlidir, ancak uzun/gurultulu kabloda
+> IN1 ile GND arasina 10k pull-down eklemek sinyali kararli tutar.
 
 **MUX adresi hakkinda:** TCA9548A'nin adresi A0/A1/A2 pinleri ile belirlenir.
 Hepsi GND'ye bagliyken taban adres **0x70**'tir; A0 = +1, A1 = +2, A2 = +4 ile

@@ -139,7 +139,21 @@
 #define RELAY_BIT_HUMIDIFIER    1   // P1 - Nemlendirici rölesi
 #define RELAY_BIT_TURNER_POWER  2   // P2 - Yumurta çevirme motor güç rölesi
 #define RELAY_BIT_TURNER_DIR    3   // P3 - Yumurta çevirme motor yön rölesi
-#define RELAY_ALL_OFF           0xFF // Tüm röleler kapalı (Active LOW)
+// Fan, L298N motor surucu uzerinden calisir:
+//   PCF8574 P7  -> L298N IN1   (yon/enable mantik girisi)
+//   ESP32 IO18  -> L298N ENA   (25 kHz PWM, hiz)
+//   L298N IN2   -> GND         (tek yon; BOSTA BIRAKILMAMALI)
+// IN1 LOW iken motor donmez, PWM ne olursa olsun.
+#define FAN_BIT_IN1             7   // P7 - L298N IN1
+
+// GUVENLI CIKIS DURUMU (bit 7 = 0!)
+//   bit 0-3 roleler : 1 = kapali (Active LOW)
+//   bit 4-6 stepper : EN aktif-LOW oldugu icin 1 = surucu pasif
+//   bit 7   fan IN1 : 0 = L298N girisi pasif
+// Eskiden 0xFF idi; bit 7 de HIGH kalarak "hepsi kapali" denen durumda
+// L298N girisini ENABLE konumunda birakiyordu. Fan yalnizca ENA PWM 0
+// oldugu icin donmuyordu - yani guvenlik tek bir sinyale bagliydi.
+#define RELAY_ALL_OFF           0x7F
 // Donanım Notu: Röle kartı, PCF8574 üzerinden kontrol edilir. Röleler aktif olduğunda ilgili pin LOW olmalıdır.
 // Bağlantı örneği: P0=Isıtıcı, P1=Nemlendirici, P2=Motor Güç, P3=Motor Yön
 // Röle kartı, MUX'un 7. kanalına (SD7/SC7) bağlanmalıdır.

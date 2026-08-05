@@ -1,10 +1,15 @@
 #include "FanDriver.h"
+#include "RelayBoard.h"   // L298N IN1, PCF8574 P7 uzerinden surulur
 
 // ============================================================
 // FanDriver — Gercek Dunya PWM Fan Surucusu
 // ------------------------------------------------------------
-// 25 kHz PWM (insan kulagi duyamaz, sessiz calisir).
-// Cikislar: ledcWrite(FAN_PIN, 0..255)
+// Fan bir L298N motor surucu uzerinden calisir:
+//   ESP32 IO18 -> ENA  : 25 kHz PWM (hiz). Insan kulagi duymaz.
+//   PCF8574 P7 -> IN1  : yon/enable mantik girisi
+//   L298N IN2  -> GND  : tek yon calisma. BOSTA BIRAKILMAMALI, aksi
+//                        halde donus yonu belirsiz olur.
+// IN1 LOW iken motor donmez; PWM tek basina yeterli degildir.
 // ============================================================
 
 FanDriver::FanDriver()
@@ -14,6 +19,7 @@ FanDriver::FanDriver()
     , _kickstartActive(false)
     , _kickstartEndMs(0)
     , _lastRampMs(0)
+    , _in1State(true)   // begin()'de ilk writePWM(0) IN1'i kesin LOW yapsin
 {
 }
 
@@ -127,4 +133,16 @@ void FanDriver::setSoftBehavior(bool enabled) {
 
 void FanDriver::writePWM(uint8_t v) {
     ledcWrite(FAN_PIN, v);
+
+    // L298N IN1 (PCF8574 P7). ENA'daki PWM tek basina yetmez: IN1 LOW iken
+    // motor donmez. Fan gercekten dursun diye kapanista IN1 de LOW yapilir,
+    // boylece durdurma tek bir sinyale bagli kalmaz.
+    //
+    // Yalnizca AC/KAPA gecisinde yaziyoruz: writePWM() ramp sirasinda cok
+    // sik cagriliyor ve her cagrida I2C'ye yazmak MUX'u bosuna mesgul eder.
+    bool wantOn = (v > 0);
+    if (wantOn != _in1State) {
+        RelayBoard::instance().setExtraPin(FAN_BIT_IN1, wantOn);
+        _in1State = wantOn;
+    }
 }
